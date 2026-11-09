@@ -1,12 +1,26 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api import comunidades, personajes
 from app.core.config import settings
+from app.db.session import init_db
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: crear tablas si no existen (usar Alembic en producción)
+    init_db()
+    yield
+    # Shutdown
+
 
 app = FastAPI(
-    title="Sistema Operativo de Comunidades de Mini-Agentes",
-    description="Plataforma multiagente para administrar comunidades sociales de personajes artificiales.",
+    title="Pulse OS · Comunidades Mini-Agentes",
+    description="Sistema Operativo de Comunidades de Mini-Agentes. Multiagente, multiproveedor, memoria persistente.",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -17,17 +31,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Routers
+app.include_router(comunidades.router, prefix="/api")
+app.include_router(personajes.router, prefix="/api")
+
 
 @app.get("/")
 def root():
     return {
-        "name": "Comunidades Mini-Agentes OS",
+        "name": "Pulse OS",
         "version": "0.1.0",
-        "status": "Fase 1 - Núcleo en construcción",
+        "status": "Fase 1 - Núcleo",
         "docs": "/docs",
+        "api": {
+            "comunidades": "/api/comunidades",
+            "personajes": "/api/personajes",
+        },
     }
 
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "service": "pulse-os"}
