@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 const TABS = ["Global", "Bots", "Runs", "Rules", "Memory"] as const;
+type Tab = (typeof TABS)[number];
 
 const COMMUNITIES = [
   { id: "gatos", name: "Comunidad Gatos", color: "cyan", agents: 48, status: "active" },
@@ -21,6 +22,21 @@ const AGENT_CARDS = [
   { name: "Router LLM", tag: "RL", color: "yellow", desc: "Multiproveedor", status: "Enabled" },
   { name: "Relation Graph", tag: "RG", color: "blue", desc: "Relaciones", status: "Enabled" },
   { name: "Activity Log", tag: "AL", color: "red", desc: "Eventos", status: "Enabled" },
+];
+
+const RUNS = [
+  { id: "r1", type: "generar_publicacion", community: "gatos", character: "Luna", model: "gpt-4o-mini", status: "completada", time: "10:21:04" },
+  { id: "r2", type: "responder_comentario", community: "tech", character: "Nexus", model: "claude-3.5", status: "en_ejecucion", time: "10:22:18" },
+  { id: "r3", type: "actualizar_memoria", community: "gatos", character: "Milo", model: "gpt-4o-mini", status: "completada", time: "10:23:01" },
+  { id: "r4", type: "planificar_actividad", community: "deportes", character: "—", model: "gemini-1.5", status: "pendiente", time: "10:24:00" },
+  { id: "r5", type: "sincronizar_pagina", community: "entretenimiento", character: "—", model: "local", status: "fallida", time: "10:24:33" },
+];
+
+const MEMORY_ENTRIES = [
+  { id: "m1", scope: "individual", owner: "Luna", summary: "Publicó historia sobre Milo. Sofi comentó.", time: "ayer" },
+  { id: "m2", scope: "colectiva", owner: "Comunidad Gatos", summary: "Tema recurrente: adoptabilidad de gatos callejeros.", time: "2 días" },
+  { id: "m3", scope: "episódica", owner: "Bruno + Sofi", summary: "Conversación sobre veterinaria en zona norte.", time: "3 días" },
+  { id: "m4", scope: "individual", owner: "Nexus", summary: "Interés creciente en modelos open-source.", time: "hoy" },
 ];
 
 const glowClass: Record<string, string> = {
@@ -45,16 +61,23 @@ const textColor: Record<string, string> = {
   red: "text-neon-red",
 };
 
+const statusColor: Record<string, string> = {
+  completada: "text-neon-green",
+  en_ejecucion: "text-neon-cyan",
+  pendiente: "text-neon-yellow",
+  fallida: "text-neon-red",
+};
+
 export default function PulseOS() {
-  const [activeTab, setActiveTab] = useState<(typeof TABS)[number]>("Global");
+  const [activeTab, setActiveTab] = useState<Tab>("Global");
 
   return (
     <div className="h-screen flex flex-col bg-[#050508] text-slate-200">
       {/* Header */}
-      <header className="flex items-center justify-between px-5 py-3 border-b border-[#1a1a2e] bg-[#08080f]/90 backdrop-blur">
+      <header className="flex items-center justify-between px-5 py-3 border-b border-[#1a1a2e] bg-[#08080f]/95 backdrop-blur z-20">
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-neon-cyan to-neon-purple flex items-center justify-center text-[10px] font-bold text-black">
+            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-neon-cyan to-neon-purple flex items-center justify-center text-[10px] font-bold text-black shadow-neon-cyan">
               P
             </div>
             <span className="font-semibold tracking-wide text-sm">
@@ -103,126 +126,14 @@ export default function PulseOS() {
 
       {/* Main content */}
       <main className="flex-1 flex overflow-hidden">
-        {/* Left: Graph / Mesh */}
-        <section className="w-[42%] relative border-r border-[#1a1a2e] p-6 flex flex-col">
-          <div className="text-xs text-slate-500 mb-4 font-mono">global / pulse-os</div>
-
-          {/* Central graph area */}
-          <div className="flex-1 relative flex items-center justify-center">
-            {/* Background grid dots */}
-            <div
-              className="absolute inset-0 opacity-20"
-              style={{
-                backgroundImage: "radial-gradient(circle, #334 1px, transparent 1px)",
-                backgroundSize: "28px 28px",
-              }}
-            />
-
-            {/* Central node - LLM Orquestador */}
-            <div className="relative z-10 flex flex-col items-center">
-              <div className="w-24 h-24 rounded-full bg-[#0c0c18] border-2 border-neon-cyan shadow-neon-cyan flex items-center justify-center relative">
-                <div className="absolute inset-0 rounded-full bg-neon-cyan/10 animate-pulse" />
-                <div className="text-3xl">◉</div>
-              </div>
-              <div className="mt-3 text-center">
-                <div className="text-sm font-semibold text-neon-cyan">LLM Orquestador</div>
-                <div className="text-[10px] text-slate-500 font-mono">core · multiproveedor</div>
-              </div>
-            </div>
-
-            {/* Orbiting nodes (simplified) */}
-            <div className="absolute top-[18%] left-[22%] neon-card glow-purple px-3 py-2 text-[11px]">
-              <div className="font-medium text-neon-purple">Personajes</div>
-              <div className="text-slate-400 text-[10px]">167 activos</div>
-            </div>
-            <div className="absolute top-[22%] right-[18%] neon-card glow-green px-3 py-2 text-[11px]">
-              <div className="font-medium text-neon-green">Memoria</div>
-              <div className="text-slate-400 text-[10px]">colectiva + individual</div>
-            </div>
-            <div className="absolute bottom-[28%] left-[18%] neon-card glow-orange px-3 py-2 text-[11px]">
-              <div className="font-medium text-neon-orange">Tareas</div>
-              <div className="text-slate-400 text-[10px]">23 en cola</div>
-            </div>
-            <div className="absolute bottom-[22%] right-[20%] neon-card glow-pink px-3 py-2 text-[11px]">
-              <div className="font-medium text-neon-pink">Facebook</div>
-              <div className="text-slate-400 text-[10px]">adaptador activo</div>
-            </div>
-          </div>
-
-          {/* Bottom mini log */}
-          <div className="mt-4 font-mono text-[10px] text-slate-500 space-y-0.5 border-t border-[#1a1a2e] pt-3">
-            <div><span className="text-neon-cyan">10:24:01</span> orquestador → tarea creada · comunidad/gatos</div>
-            <div><span className="text-neon-green">10:24:03</span> memory · recuperado contexto · personaje/luna</div>
-            <div><span className="text-neon-yellow">10:24:05</span> router · modelo seleccionado · gpt-4o-mini</div>
-          </div>
-        </section>
-
-        {/* Right: Agent / Community cards */}
-        <section className="flex-1 overflow-y-auto p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-medium text-slate-300">Módulos del sistema</h2>
-            <span className="text-[10px] text-slate-500 font-mono">8 módulos · todos online</span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 mb-8">
-            {AGENT_CARDS.map((card) => (
-              <div
-                key={card.tag}
-                className={`neon-card ${glowClass[card.color]} p-3.5 hover:scale-[1.02] transition-transform cursor-pointer`}
-              >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${textColor[card.color]} bg-white/5`}>
-                        {card.tag}
-                      </span>
-                      <span className="text-sm font-medium">{card.name}</span>
-                    </div>
-                    <div className="text-[11px] text-slate-400 mt-1">{card.desc}</div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-neon-green" />
-                    <span className="text-[10px] text-neon-green">{card.status}</span>
-                  </div>
-                </div>
-                <div className="mt-3 flex gap-2 text-[10px] text-slate-500">
-                  <span className="px-1.5 py-0.5 rounded bg-white/5">own context</span>
-                  <span className="px-1.5 py-0.5 rounded bg-white/5">loop · max 3</span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-medium text-slate-300">Comunidades</h2>
-            <span className="text-[10px] text-slate-500 font-mono">5 activas</span>
-          </div>
-
-          <div className="space-y-2.5">
-            {COMMUNITIES.map((c) => (
-              <div
-                key={c.id}
-                className={`neon-card ${glowClass[c.color]} px-4 py-3 flex items-center justify-between hover:bg-white/[0.02] transition cursor-pointer`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`w-2 h-8 rounded-full bg-neon-${c.color === "cyan" ? "cyan" : c.color}`} style={{ background: `var(--tw-gradient-from, currentColor)` }} />
-                  <div>
-                    <div className="text-sm font-medium">{c.name}</div>
-                    <div className="text-[11px] text-slate-400">{c.agents} personajes</div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`text-[10px] ${c.status === "active" ? "text-neon-green" : "text-slate-500"}`}>
-                    {c.status === "active" ? "● activo" : "○ idle"}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
+        {activeTab === "Global" && <GlobalMesh />}
+        {activeTab === "Bots" && <BotsView />}
+        {activeTab === "Runs" && <RunsView />}
+        {activeTab === "Rules" && <RulesView />}
+        {activeTab === "Memory" && <MemoryView />}
       </main>
 
-      {/* Footer status bar */}
+      {/* Footer */}
       <footer className="h-8 border-t border-[#1a1a2e] bg-[#08080f] flex items-center justify-between px-4 text-[10px] font-mono text-slate-500">
         <div className="flex gap-4">
           <span>pulse-os v0.1.0</span>
@@ -235,5 +146,329 @@ export default function PulseOS() {
         </div>
       </footer>
     </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  GLOBAL / MESH VIEW                                                        */
+/* -------------------------------------------------------------------------- */
+function GlobalMesh() {
+  return (
+    <>
+      {/* Left graph panel */}
+      <section className="w-[46%] relative border-r border-[#1a1a2e] flex flex-col">
+        <div className="px-5 pt-4 text-xs text-slate-500 font-mono flex items-center justify-between">
+          <span>global / pulse-os</span>
+          <span className="text-neon-cyan/70">mesh · live</span>
+        </div>
+
+        <div className="flex-1 relative">
+          {/* Dot grid */}
+          <div
+            className="absolute inset-0 opacity-[0.15]"
+            style={{
+              backgroundImage: "radial-gradient(circle, #445 1px, transparent 1px)",
+              backgroundSize: "26px 26px",
+            }}
+          />
+
+          {/* SVG connections */}
+          <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 1 }}>
+            <defs>
+              <linearGradient id="beamCyan" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#00f0ff" stopOpacity="0" />
+                <stop offset="50%" stopColor="#00f0ff" stopOpacity="0.7" />
+                <stop offset="100%" stopColor="#00f0ff" stopOpacity="0" />
+              </linearGradient>
+              <linearGradient id="beamPurple" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#b400ff" stopOpacity="0" />
+                <stop offset="50%" stopColor="#b400ff" stopOpacity="0.6" />
+                <stop offset="100%" stopColor="#b400ff" stopOpacity="0" />
+              </linearGradient>
+              <linearGradient id="beamGreen" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#00ff9d" stopOpacity="0" />
+                <stop offset="50%" stopColor="#00ff9d" stopOpacity="0.6" />
+                <stop offset="100%" stopColor="#00ff9d" stopOpacity="0" />
+              </linearGradient>
+              <linearGradient id="beamPink" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#ff00aa" stopOpacity="0" />
+                <stop offset="50%" stopColor="#ff00aa" stopOpacity="0.6" />
+                <stop offset="100%" stopColor="#ff00aa" stopOpacity="0" />
+              </linearGradient>
+              <linearGradient id="beamOrange" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#ff6b00" stopOpacity="0" />
+                <stop offset="50%" stopColor="#ff6b00" stopOpacity="0.6" />
+                <stop offset="100%" stopColor="#ff6b00" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+
+            {/* Center to nodes */}
+            <line x1="50%" y1="48%" x2="22%" y2="22%" stroke="url(#beamPurple)" strokeWidth="1.5" className="animate-dash" strokeDasharray="6 4" />
+            <line x1="50%" y1="48%" x2="78%" y2="20%" stroke="url(#beamGreen)" strokeWidth="1.5" className="animate-dash" strokeDasharray="6 4" />
+            <line x1="50%" y1="48%" x2="20%" y2="72%" stroke="url(#beamOrange)" strokeWidth="1.5" className="animate-dash" strokeDasharray="6 4" />
+            <line x1="50%" y1="48%" x2="80%" y2="75%" stroke="url(#beamPink)" strokeWidth="1.5" className="animate-dash" strokeDasharray="6 4" />
+            <line x1="50%" y1="48%" x2="50%" y2="18%" stroke="url(#beamCyan)" strokeWidth="1.5" className="animate-dash" strokeDasharray="6 4" />
+          </svg>
+
+          {/* Central node */}
+          <div className="absolute left-1/2 top-[48%] -translate-x-1/2 -translate-y-1/2 z-10 flex flex-col items-center">
+            <div className="w-28 h-28 rounded-full bg-[#0c0c18] border-2 border-neon-cyan shadow-neon-cyan flex items-center justify-center relative">
+              <div className="absolute inset-0 rounded-full bg-neon-cyan/15 animate-pulse" />
+              <div className="absolute -inset-3 rounded-full border border-neon-cyan/20" />
+              <div className="text-4xl relative z-10">◉</div>
+            </div>
+            <div className="mt-3 text-center">
+              <div className="text-sm font-semibold text-neon-cyan tracking-wide">LLM Orquestador</div>
+              <div className="text-[10px] text-slate-500 font-mono mt-0.5">core · multiproveedor · failover</div>
+            </div>
+          </div>
+
+          {/* Orbit nodes */}
+          <div className="absolute top-[14%] left-1/2 -translate-x-1/2 neon-card glow-cyan px-3.5 py-2 text-[11px] z-10">
+            <div className="font-medium text-neon-cyan">Router LLM</div>
+            <div className="text-slate-400 text-[10px]">3 proveedores · activo</div>
+          </div>
+
+          <div className="absolute top-[18%] left-[12%] neon-card glow-purple px-3.5 py-2 text-[11px] z-10">
+            <div className="font-medium text-neon-purple">Personajes</div>
+            <div className="text-slate-400 text-[10px]">167 activos</div>
+          </div>
+
+          <div className="absolute top-[16%] right-[10%] neon-card glow-green px-3.5 py-2 text-[11px] z-10">
+            <div className="font-medium text-neon-green">Memoria</div>
+            <div className="text-slate-400 text-[10px]">individual + colectiva</div>
+          </div>
+
+          <div className="absolute bottom-[22%] left-[10%] neon-card glow-orange px-3.5 py-2 text-[11px] z-10">
+            <div className="font-medium text-neon-orange">Task Queue</div>
+            <div className="text-slate-400 text-[10px]">23 en cola</div>
+          </div>
+
+          <div className="absolute bottom-[18%] right-[10%] neon-card glow-pink px-3.5 py-2 text-[11px] z-10">
+            <div className="font-medium text-neon-pink">Social Adapter</div>
+            <div className="text-slate-400 text-[10px]">Facebook · conectado</div>
+          </div>
+        </div>
+
+        {/* Activity log */}
+        <div className="px-5 py-3 border-t border-[#1a1a2e] font-mono text-[10px] text-slate-500 space-y-0.5 bg-[#07070c]">
+          <div><span className="text-neon-cyan">10:24:01</span> orquestador → tarea creada · comunidad/gatos</div>
+          <div><span className="text-neon-green">10:24:03</span> memory · recuperado contexto · personaje/luna</div>
+          <div><span className="text-neon-yellow">10:24:05</span> router · modelo seleccionado · gpt-4o-mini</div>
+          <div><span className="text-neon-pink">10:24:08</span> social · publicación preparada · página/luna-cats</div>
+        </div>
+      </section>
+
+      {/* Right panel */}
+      <section className="flex-1 overflow-y-auto p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-medium text-slate-300">Módulos del sistema</h2>
+          <span className="text-[10px] text-slate-500 font-mono">8 módulos · todos online</span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 mb-8">
+          {AGENT_CARDS.map((card) => (
+            <div
+              key={card.tag}
+              className={`neon-card ${glowClass[card.color]} p-3.5 hover:scale-[1.015] transition-transform cursor-pointer`}
+            >
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${textColor[card.color]} bg-white/5`}>
+                      {card.tag}
+                    </span>
+                    <span className="text-sm font-medium">{card.name}</span>
+                  </div>
+                  <div className="text-[11px] text-slate-400 mt-1">{card.desc}</div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-neon-green" />
+                  <span className="text-[10px] text-neon-green">{card.status}</span>
+                </div>
+              </div>
+              <div className="mt-3 flex gap-2 text-[10px] text-slate-500">
+                <span className="px-1.5 py-0.5 rounded bg-white/5">own context</span>
+                <span className="px-1.5 py-0.5 rounded bg-white/5">loop · max 3</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-medium text-slate-300">Comunidades</h2>
+          <span className="text-[10px] text-slate-500 font-mono">5 activas</span>
+        </div>
+
+        <div className="space-y-2.5">
+          {COMMUNITIES.map((c) => (
+            <div
+              key={c.id}
+              className={`neon-card ${glowClass[c.color]} px-4 py-3 flex items-center justify-between hover:bg-white/[0.02] transition cursor-pointer`}
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-1.5 h-9 rounded-full"
+                  style={{
+                    background:
+                      c.color === "cyan"
+                        ? "#00f0ff"
+                        : c.color === "purple"
+                        ? "#b400ff"
+                        : c.color === "green"
+                        ? "#00ff9d"
+                        : c.color === "orange"
+                        ? "#ff6b00"
+                        : "#ff00aa",
+                  }}
+                />
+                <div>
+                  <div className="text-sm font-medium">{c.name}</div>
+                  <div className="text-[11px] text-slate-400">{c.agents} personajes</div>
+                </div>
+              </div>
+              <span className={`text-[10px] ${c.status === "active" ? "text-neon-green" : "text-slate-500"}`}>
+                {c.status === "active" ? "● activo" : "○ idle"}
+              </span>
+            </div>
+          ))}
+        </div>
+      </section>
+    </>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  BOTS VIEW                                                                 */
+/* -------------------------------------------------------------------------- */
+function BotsView() {
+  return (
+    <section className="flex-1 overflow-y-auto p-6">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-lg font-medium text-slate-200">Módulos / Bots</h2>
+          <p className="text-xs text-slate-500 mt-1">Componentes del sistema que ejecutan la lógica de Pulse OS</p>
+        </div>
+        <span className="text-[10px] font-mono text-neon-green">8 / 8 online</span>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {AGENT_CARDS.map((card) => (
+          <div key={card.tag} className={`neon-card ${glowClass[card.color]} p-5`}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className={`text-xs font-bold px-2 py-0.5 rounded ${textColor[card.color]} bg-white/5`}>
+                  {card.tag}
+                </span>
+                <span className="font-medium">{card.name}</span>
+              </div>
+              <span className="flex items-center gap-1 text-[10px] text-neon-green">
+                <span className="w-1.5 h-1.5 rounded-full bg-neon-green" /> Enabled
+              </span>
+            </div>
+            <p className="text-sm text-slate-400 mb-4">{card.desc}</p>
+            <div className="flex flex-wrap gap-2 text-[10px] text-slate-500">
+              <span className="px-2 py-1 rounded bg-white/5">own context</span>
+              <span className="px-2 py-1 rounded bg-white/5">loop · max 3</span>
+              <span className="px-2 py-1 rounded bg-white/5">check pass cond.</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  RUNS VIEW                                                                 */
+/* -------------------------------------------------------------------------- */
+function RunsView() {
+  return (
+    <section className="flex-1 overflow-y-auto p-6">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-lg font-medium text-slate-200">Runs / Tareas</h2>
+          <p className="text-xs text-slate-500 mt-1">Ejecuciones del orquestador y trabajadores</p>
+        </div>
+        <span className="text-[10px] font-mono text-slate-400">últimas 5</span>
+      </div>
+
+      <div className="space-y-2">
+        {RUNS.map((run) => (
+          <div key={run.id} className="neon-card glow-cyan px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <span className="font-mono text-[10px] text-slate-500 w-16">{run.time}</span>
+              <div>
+                <div className="text-sm font-medium">{run.type}</div>
+                <div className="text-[11px] text-slate-400">
+                  {run.community} {run.character !== "—" ? `· ${run.character}` : ""} · {run.model}
+                </div>
+              </div>
+            </div>
+            <span className={`text-[11px] font-mono ${statusColor[run.status]}`}>
+              {run.status.replace("_", " ")}
+            </span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  RULES VIEW                                                                */
+/* -------------------------------------------------------------------------- */
+function RulesView() {
+  return (
+    <section className="flex-1 overflow-y-auto p-6">
+      <div className="mb-6">
+        <h2 className="text-lg font-medium text-slate-200">Rules</h2>
+        <p className="text-xs text-slate-500 mt-1">Reglas editoriales, límites y políticas de comportamiento por comunidad</p>
+      </div>
+
+      <div className="neon-card glow-purple p-5 max-w-2xl">
+        <div className="text-sm text-slate-300 mb-3">Próximamente</div>
+        <ul className="text-xs text-slate-400 space-y-2 list-disc list-inside">
+          <li>Reglas editoriales por comunidad</li>
+          <li>Límites de frecuencia de publicación</li>
+          <li>Filtros de tono y temas prohibidos</li>
+          <li>Políticas de interacción entre personajes</li>
+          <li>Configuración de failover y costos</li>
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  MEMORY VIEW                                                               */
+/* -------------------------------------------------------------------------- */
+function MemoryView() {
+  return (
+    <section className="flex-1 overflow-y-auto p-6">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-lg font-medium text-slate-200">Memory</h2>
+          <p className="text-xs text-slate-500 mt-1">Memoria individual, colectiva y episódica</p>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        {MEMORY_ENTRIES.map((m) => (
+          <div key={m.id} className="neon-card glow-green px-4 py-3">
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-neon-green/10 text-neon-green font-mono">
+                  {m.scope}
+                </span>
+                <span className="text-sm font-medium">{m.owner}</span>
+              </div>
+              <span className="text-[10px] text-slate-500">{m.time}</span>
+            </div>
+            <p className="text-[13px] text-slate-300">{m.summary}</p>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
