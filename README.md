@@ -35,7 +35,23 @@ npm run dev
 
 Abrí [http://localhost:3000](http://localhost:3000)
 
-Documentación detallada de la UI: [`docs/FRONTEND.md`](docs/FRONTEND.md)
+Documentación: [`docs/FRONTEND.md`](docs/FRONTEND.md)
+
+---
+
+## Backend
+
+```bash
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+```
+
+Docs interactivas: http://localhost:8000/docs  
+Documentación: [`docs/BACKEND.md`](docs/BACKEND.md)
+
+Endpoints listos:
+- `GET/POST/PATCH/DELETE /api/comunidades`
+- `GET/POST/PATCH/DELETE /api/personajes`
 
 ---
 
@@ -72,17 +88,19 @@ Documentación detallada de la UI: [`docs/FRONTEND.md`](docs/FRONTEND.md)
 ```
 comunidades-mini-agentes/
 ├── app/                     # Backend FastAPI
+│   ├── api/                 # Routers (comunidades, personajes)
 │   ├── core/
 │   ├── db/
 │   ├── services/llm/
 │   └── main.py
 ├── web/                     # Frontend Pulse OS (Next.js)
 │   ├── src/app/
-│   ├── package.json
+│   ├── src/lib/api.ts       # Cliente del backend
 │   └── ...
 ├── docs/
 │   ├── DOCUMENTO_MAESTRO.md
-│   └── FRONTEND.md
+│   ├── FRONTEND.md
+│   └── BACKEND.md
 ├── requirements.txt
 └── README.md
 ```
@@ -96,5 +114,6 @@ El documento completo de arquitectura está en [`docs/DOCUMENTO_MAESTRO.md`](doc
 ---
 
 **Estado actual (9 nov 2026):**  
-- Backend: modelos de datos + estructura inicial  
-- Frontend: **Pulse OS** con 5 tabs (Global Mesh mejorado con beams SVG animados, Bots, Runs, Rules, Memory)
+- Backend: modelos + CRUD de Comunidades y Personajes + init_db  
+- Frontend: Pulse OS con 5 tabs + cliente API listo para conectar datos reales  
+- Documentación: Documento Maestro + FRONTEND.md + BACKEND.md
