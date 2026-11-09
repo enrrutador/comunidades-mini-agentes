@@ -15,6 +15,16 @@ Coordinado por un **LLM central** que actúa como cerebro y orquestador. Indepen
 
 El panel administrativo tiene estética **dark + neon mesh**, inspirada en interfaces tipo Grok Bot Mesh / neural agent systems.
 
+### Tabs disponibles
+
+| Tab       | Estado      |
+|-----------|-------------|
+| Global    | Mesh central + módulos + comunidades + log en vivo |
+| Bots      | Vista de todos los módulos del sistema |
+| Runs      | Historial de tareas / ejecuciones |
+| Rules     | Placeholder (reglas editoriales) |
+| Memory    | Memoria individual, colectiva y episódica |
+
 ### Cómo correr el frontend
 
 ```bash
@@ -24,6 +34,8 @@ npm run dev
 ```
 
 Abrí [http://localhost:3000](http://localhost:3000)
+
+Documentación detallada de la UI: [`docs/FRONTEND.md`](docs/FRONTEND.md)
 
 ---
 
@@ -69,7 +81,8 @@ comunidades-mini-agentes/
 │   ├── package.json
 │   └── ...
 ├── docs/
-│   └── DOCUMENTO_MAESTRO.md
+│   ├── DOCUMENTO_MAESTRO.md
+│   └── FRONTEND.md
 ├── requirements.txt
 └── README.md
 ```
@@ -78,10 +91,10 @@ comunidades-mini-agentes/
 
 ## Documento maestro
 
-El documento completo de arquitectura está en `docs/DOCUMENTO_MAESTRO.md`.
+El documento completo de arquitectura está en [`docs/DOCUMENTO_MAESTRO.md`](docs/DOCUMENTO_MAESTRO.md).
 
 ---
 
-**Estado actual:**  
+**Estado actual (9 nov 2026):**  
 - Backend: modelos de datos + estructura inicial  
-- Frontend: **Pulse OS** pantalla Global / Mesh lista (estilo neón)
+- Frontend: **Pulse OS** con 5 tabs (Global Mesh mejorado con beams SVG animados, Bots, Runs, Rules, Memory)
