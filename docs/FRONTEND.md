@@ -18,6 +18,7 @@ Características visuales clave:
 - Header con tabs + contadores en vivo + indicador LIVE
 - Tipografía monoespaciada para logs y estados
 - Estética “sistema vivo”
+- Hover glow más intenso en las tarjetas
 
 ---
 
@@ -26,10 +27,12 @@ Características visuales clave:
 ```
 web/
 ├── src/
-│   └── app/
-│       ├── layout.tsx
-│       ├── page.tsx          ← pantalla principal con todas las tabs
-│       └── globals.css       ← estilos neón + utilidades
+│   ├── app/
+│   │   ├── layout.tsx
+│   │   ├── page.tsx          ← pantalla principal con todas las tabs
+│   │   └── globals.css       ← estilos neón + utilidades
+│   └── lib/
+│       └── api.ts            ← cliente TypeScript del backend
 ├── package.json
 ├── tailwind.config.ts
 ├── postcss.config.mjs
@@ -51,6 +54,24 @@ web/
 
 ---
 
+## Conexión con el backend
+
+El cliente está en `src/lib/api.ts`.
+
+```ts
+import { listComunidades, listPersonajes, createComunidad } from "@/lib/api";
+```
+
+Variable de entorno (crear `.env.local` en `web/`):
+
+```
+NEXT_PUBLIC_API_URL=http://localhost:8000/api
+```
+
+Por ahora los datos de la UI siguen siendo mock. El siguiente paso es reemplazarlos por llamadas reales usando este cliente.
+
+---
+
 ## Cómo correr
 
 ```bash
@@ -61,16 +82,20 @@ npm run dev
 
 Abrir: http://localhost:3000
 
+Backend (en otra terminal):
+```bash
+uvicorn app.main:app --reload --port 8000
+```
+
 ---
 
 ## Próximos pasos de UI
 
-1. Mejorar animaciones de los beams (más orgánicos)
+1. Reemplazar mocks por datos reales del backend
 2. Vista detallada de un personaje (ficha de personalidad)
 3. Vista detallada de una comunidad
 4. Panel de configuración multiproveedor LLM
-5. Conexión real con el backend FastAPI (datos en vivo)
-6. Dark/light toggle (opcional)
+5. Mejorar animaciones de los beams
 
 ---
 
@@ -79,4 +104,3 @@ Abrir: http://localhost:3000
 - Next.js 15 + React 18 + Tailwind CSS 3
 - Componentes client-side (`"use client"`)
 - Sin librerías de grafos todavía (SVG puro + CSS)
-- Los datos actuales son mock. Se reemplazarán por llamadas al backend.
