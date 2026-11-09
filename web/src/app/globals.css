@@ -1,0 +1,75 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #050508;
+  --panel: #0a0a12;
+}
+
+html,
+body {
+  height: 100%;
+  background: var(--bg);
+  color: #e2e8f0;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Neon card base */
+.neon-card {
+  background: linear-gradient(180deg, rgba(15, 15, 25, 0.9) 0%, rgba(8, 8, 15, 0.95) 100%);
+  border: 1px solid;
+  border-radius: 10px;
+  position: relative;
+  overflow: hidden;
+}
+
+.neon-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  padding: 1px;
+  background: linear-gradient(135deg, transparent, rgba(255, 255, 255, 0.05));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Glow utilities */
+.glow-cyan { border-color: #00f0ff55; box-shadow: 0 0 12px #00f0ff33, inset 0 0 12px #00f0ff08; }
+.glow-pink { border-color: #ff00aa55; box-shadow: 0 0 12px #ff00aa33, inset 0 0 12px #ff00aa08; }
+.glow-purple { border-color: #b400ff55; box-shadow: 0 0 12px #b400ff33, inset 0 0 12px #b400ff08; }
+.glow-green { border-color: #00ff9d55; box-shadow: 0 0 12px #00ff9d33, inset 0 0 12px #00ff9d08; }
+.glow-orange { border-color: #ff6b0055; box-shadow: 0 0 12px #ff6b0033, inset 0 0 12px #ff6b0008; }
+.glow-yellow { border-color: #ffee0055; box-shadow: 0 0 12px #ffee0033, inset 0 0 12px #ffee0008; }
+.glow-blue { border-color: #3b82f655; box-shadow: 0 0 12px #3b82f633, inset 0 0 12px #3b82f608; }
+.glow-red { border-color: #ff335555; box-shadow: 0 0 12px #ff335533, inset 0 0 12px #ff335508; }
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0a0a12;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e1e30;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #2a2a40;
+}
+
+/* Connection lines animation */
+@keyframes dash {
+  to {
+    stroke-dashoffset: -20;
+  }
+}
+.animate-dash {
+  animation: dash 1.5s linear infinite;
+}
