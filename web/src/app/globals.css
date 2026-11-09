@@ -17,7 +17,7 @@ body {
 
 /* Neon card base */
 .neon-card {
-  background: linear-gradient(180deg, rgba(15, 15, 25, 0.9) 0%, rgba(8, 8, 15, 0.95) 100%);
+  background: linear-gradient(180deg, rgba(15, 15, 25, 0.92) 0%, rgba(8, 8, 15, 0.96) 100%);
   border: 1px solid;
   border-radius: 10px;
   position: relative;
@@ -30,7 +30,7 @@ body {
   inset: 0;
   border-radius: 10px;
   padding: 1px;
-  background: linear-gradient(135deg, transparent, rgba(255, 255, 255, 0.05));
+  background: linear-gradient(135deg, transparent, rgba(255, 255, 255, 0.04));
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
@@ -47,6 +47,16 @@ body {
 .glow-yellow { border-color: #ffee0055; box-shadow: 0 0 12px #ffee0033, inset 0 0 12px #ffee0008; }
 .glow-blue { border-color: #3b82f655; box-shadow: 0 0 12px #3b82f633, inset 0 0 12px #3b82f608; }
 .glow-red { border-color: #ff335555; box-shadow: 0 0 12px #ff335533, inset 0 0 12px #ff335508; }
+
+/* Stronger glow on hover */
+.neon-card:hover.glow-cyan { box-shadow: 0 0 18px #00f0ff55, inset 0 0 14px #00f0ff10; }
+.neon-card:hover.glow-pink { box-shadow: 0 0 18px #ff00aa55, inset 0 0 14px #ff00aa10; }
+.neon-card:hover.glow-purple { box-shadow: 0 0 18px #b400ff55, inset 0 0 14px #b400ff10; }
+.neon-card:hover.glow-green { box-shadow: 0 0 18px #00ff9d55, inset 0 0 14px #00ff9d10; }
+.neon-card:hover.glow-orange { box-shadow: 0 0 18px #ff6b0055, inset 0 0 14px #ff6b0010; }
+.neon-card:hover.glow-yellow { box-shadow: 0 0 18px #ffee0055, inset 0 0 14px #ffee0010; }
+.neon-card:hover.glow-blue { box-shadow: 0 0 18px #3b82f655, inset 0 0 14px #3b82f610; }
+.neon-card:hover.glow-red { box-shadow: 0 0 18px #ff335555, inset 0 0 14px #ff335510; }
 
 /* Scrollbar */
 ::-webkit-scrollbar {
@@ -67,9 +77,18 @@ body {
 /* Connection lines animation */
 @keyframes dash {
   to {
-    stroke-dashoffset: -20;
+    stroke-dashoffset: -24;
   }
 }
 .animate-dash {
-  animation: dash 1.5s linear infinite;
+  animation: dash 1.8s linear infinite;
+}
+
+/* Soft pulse for central node */
+@keyframes soft-pulse {
+  0%, 100% { opacity: 0.15; transform: scale(1); }
+  50% { opacity: 0.28; transform: scale(1.04); }
+}
+.animate-soft-pulse {
+  animation: soft-pulse 3s ease-in-out infinite;
 }
