@@ -136,10 +136,15 @@ class Cuenta(CuentaBase, table=True):
     __tablename__ = "cuentas"
 
     id: str = Field(default_factory=generate_uuid, primary_key=True)
+    # Token de usuario cifrado (Fernet). Nunca en texto plano.
+    token_usuario_cifrado: Optional[str] = Field(default=None, sa_column=Column(Text))
+    token_usuario_expira: Optional[datetime] = None
     # Credenciales / tokens se almacenan de forma segura (nunca en conversaciones del LLM)
     # Se recomienda tabla separada o secret manager en producción.
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    paginas: list["Pagina"] = Relationship(back_populates="cuenta")
 
 
 class PaginaBase(SQLModel):
@@ -157,11 +162,16 @@ class Pagina(PaginaBase, table=True):
 
     id: str = Field(default_factory=generate_uuid, primary_key=True)
     comunidad_id: Optional[str] = Field(default=None, foreign_key="comunidades.id", index=True)
+    cuenta_id: Optional[str] = Field(default=None, foreign_key="cuentas.id", index=True)
+    # Token de página cifrado (Fernet). Page tokens no expiran si se obtienen con LLT.
+    token_pagina_cifrado: Optional[str] = Field(default=None, sa_column=Column(Text))
+    token_pagina_expira: Optional[datetime] = None
     # Un personaje puede estar asociado a una Página (relación 1:1 o 1:N según evolución)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
     personaje: Optional[Personaje] = Relationship(back_populates="pagina")
+    cuenta: Optional["Cuenta"] = Relationship(back_populates="paginas")
 
 
 # ---------------------------------------------------------------------------
