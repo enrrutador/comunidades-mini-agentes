@@ -391,5 +391,3 @@ export function buscarMemoria(q: string, scope?: string, comunidadId?: string) {
   if (comunidadId) params.set("comunidad_id", comunidadId);
   return request<MemoryEntry[]>(`/memoria/buscar?${params}`);
 }
-EOF
-echo "done"

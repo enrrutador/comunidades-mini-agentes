@@ -13,6 +13,8 @@ import { BotConfigModal } from "@/components/BotCard";
 import { CharacterConfigModal } from "@/components/CharacterCard";
 import { useStored } from "@/lib/useStored";
 import { activeProvider, callLLM, llmConfigured } from "@/lib/llm";
+import { listComunidades, listPersonajes, createComunidad, createPersonaje, updatePersonaje } from "@/lib/api";
+import type { Comunidad as ApiComunidad, Personaje as ApiPersonaje } from "@/lib/api";
 import { timeNow, uid } from "@/lib/theme";
 import {
   ALL_BOTS,
@@ -28,6 +30,7 @@ import {
 import type {
   Bot,
   Character,
+  Community,
   Color,
   LogEntry,
   MemoryEntry,
@@ -58,7 +61,7 @@ export default function PulseOS() {
     "pulse.characters.v1",
     [...CHARACTERS],
   );
-  const [communities] = useStored("pulse.communities.v1", [...COMMUNITIES]);
+  const [communities, setCommunities] = useStored("pulse.communities.v1", [...COMMUNITIES]);
   const [accounts, setAccounts] = useStored(
     "pulse.accounts.v1",
     [...SOCIAL_ACCOUNTS],
@@ -101,6 +104,48 @@ export default function PulseOS() {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, []);
+
+  // Sincronizar comunidades y personajes con el backend al montar
+  useEffect(() => {
+    if (!mounted) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const apiComunidades = await listComunidades();
+        if (cancelled || !apiComunidades.length) return;
+        const mapped: Community[] = apiComunidades.map((c) => ({
+          id: c.id,
+          name: c.nombre,
+          color: "cyan" as Color,
+          agents: 0,
+          tematica: c.tematica ?? undefined,
+          descripcion: c.descripcion_interna ?? undefined,
+        }));
+        setCommunities(mapped);
+      } catch {
+        // Backend no disponible, usar datos locales
+      }
+      try {
+        const apiPersonajes = await listPersonajes();
+        if (cancelled || !apiPersonajes.length) return;
+        const mapped: Character[] = apiPersonajes.map((p) => ({
+          id: p.id,
+          name: p.nombre,
+          communityId: p.comunidad_id,
+          color: "cyan" as Color,
+          estado: (p.estado === "activo" ? "activo" : p.estado === "inactivo" ? "inactivo" : "en_preparacion") as Character["estado"],
+          actividad: p.nivel_actividad ?? 5,
+          bio: p.biografia_interna ?? "",
+          temperamento: (p.personalidad as Record<string, string>)?.temperamento ?? "",
+          temas: (p.personalidad as Record<string, string[]>)?.temas_preferidos ?? [],
+        }));
+        setCharacters(mapped);
+      } catch {
+        // Backend no disponible, usar datos locales
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [mounted]);
 
   function addLog(source: string, message: string, color?: Color) {
     const entry: LogEntry = {
@@ -281,6 +326,30 @@ export default function PulseOS() {
         ? prev.map((item) => (item.id === character.id ? character : item))
         : [...prev, character],
     );
+    // Sincronizar con backend
+    (async () => {
+      try {
+        if (exists) {
+          await updatePersonaje(character.id, {
+            nombre: character.name,
+            biografia_interna: character.bio,
+            nivel_actividad: character.actividad,
+            personalidad: { temperamento: character.temperamento, temas_preferidos: character.temas },
+            estado: character.estado,
+          });
+        } else {
+          await createPersonaje({
+            nombre: character.name,
+            comunidad_id: character.communityId,
+            biografia_interna: character.bio,
+            nivel_actividad: character.actividad,
+            personalidad: { temperamento: character.temperamento, temas_preferidos: character.temas },
+          });
+        }
+      } catch {
+        // Backend no disponible
+      }
+    })();
     addLog(
       "persona",
       `${exists ? "personaje actualizado" : "personaje creado"} · ${character.name}`,
