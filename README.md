@@ -17,13 +17,16 @@ El panel administrativo tiene estética **dark + neon mesh**, inspirada en inter
 
 ### Tabs disponibles
 
-| Tab       | Estado      |
-|-----------|-------------|
-| Global    | Mesh central + módulos + comunidades + log en vivo |
-| Bots      | Vista de todos los módulos del sistema |
-| Runs      | Historial de tareas / ejecuciones |
-| Rules     | Placeholder (reglas editoriales) |
-| Memory    | Memoria individual, colectiva y episódica |
+| Tab           | Estado   | Descripción |
+|---------------|----------|-------------|
+| Global        | Completa | Mesh central, filtros, bots/personajes, output y composer |
+| Bots          | Completa | Módulos del sistema y bots de workflow editables |
+| Runs          | Completa | Historial de tareas, modelo y verificación |
+| Rules         | Completa | Reglas editoriales y políticas |
+| Memory        | Completa | Memoria individual, colectiva, episódica y semántica |
+| Comunidad     | Completa | Comunidades, personajes y cuentas de Página |
+
+Incluye configuración multiproveedor LLM (OpenAI, OpenRouter, Groq, NVIDIA NIM, Ollama local y custom), proxy `/api/llm` y persistencia en `localStorage`.
 
 ### Cómo correr el frontend
 
@@ -95,7 +98,9 @@ comunidades-mini-agentes/
 │   └── main.py
 ├── web/                     # Frontend Pulse OS (Next.js)
 │   ├── src/app/
-│   ├── src/lib/api.ts       # Cliente del backend
+│   │   └── api/llm/         # Proxy LLM OpenAI-compatible
+│   ├── src/components/      # Header, vistas, mesh, output, modales
+│   ├── src/lib/             # api, tipos, datos, tema, LLM y persistencia
 │   └── ...
 ├── docs/
 │   ├── DOCUMENTO_MAESTRO.md
@@ -113,7 +118,7 @@ El documento completo de arquitectura está en [`docs/DOCUMENTO_MAESTRO.md`](doc
 
 ---
 
-**Estado actual (9 nov 2026):**  
+**Estado actual (10 nov 2026):**  
 - Backend: modelos + CRUD de Comunidades y Personajes + init_db  
-- Frontend: Pulse OS con 5 tabs + cliente API listo para conectar datos reales  
+- Frontend: Pulse OS con 6 tabs, composer LLM, configuración multiproveedor y runs simuladas; cliente API listo para conectar datos reales  
 - Documentación: Documento Maestro + FRONTEND.md + BACKEND.md

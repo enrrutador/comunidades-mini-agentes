@@ -5,6 +5,7 @@
 :root {
   --bg: #050508;
   --panel: #0a0a12;
+  --border: #1a1a2e;
 }
 
 html,
@@ -12,53 +13,168 @@ body {
   height: 100%;
   background: var(--bg);
   color: #e2e8f0;
-  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, sans-serif;
 }
 
-/* Neon card base */
-.neon-card {
-  background: linear-gradient(180deg, rgba(15, 15, 25, 0.92) 0%, rgba(8, 8, 15, 0.96) 100%);
-  border: 1px solid;
-  border-radius: 10px;
-  position: relative;
+body {
   overflow: hidden;
 }
 
-.neon-card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 10px;
-  padding: 1px;
-  background: linear-gradient(135deg, transparent, rgba(255, 255, 255, 0.04));
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
+::selection {
+  background: rgba(0, 240, 255, 0.25);
+  color: #fff;
 }
 
-/* Glow utilities */
-.glow-cyan { border-color: #00f0ff55; box-shadow: 0 0 12px #00f0ff33, inset 0 0 12px #00f0ff08; }
-.glow-pink { border-color: #ff00aa55; box-shadow: 0 0 12px #ff00aa33, inset 0 0 12px #ff00aa08; }
-.glow-purple { border-color: #b400ff55; box-shadow: 0 0 12px #b400ff33, inset 0 0 12px #b400ff08; }
-.glow-green { border-color: #00ff9d55; box-shadow: 0 0 12px #00ff9d33, inset 0 0 12px #00ff9d08; }
-.glow-orange { border-color: #ff6b0055; box-shadow: 0 0 12px #ff6b0033, inset 0 0 12px #ff6b0008; }
-.glow-yellow { border-color: #ffee0055; box-shadow: 0 0 12px #ffee0033, inset 0 0 12px #ffee0008; }
-.glow-blue { border-color: #3b82f655; box-shadow: 0 0 12px #3b82f633, inset 0 0 12px #3b82f608; }
-.glow-red { border-color: #ff335555; box-shadow: 0 0 12px #ff335533, inset 0 0 12px #ff335508; }
+@layer components {
+  .neon-card {
+    background: linear-gradient(
+      180deg,
+      rgba(15, 15, 25, 0.92) 0%,
+      rgba(8, 8, 15, 0.96) 100%
+    );
+    border: 1px solid;
+    border-radius: 10px;
+    position: relative;
+    overflow: hidden;
+  }
 
-/* Stronger glow on hover */
-.neon-card:hover.glow-cyan { box-shadow: 0 0 18px #00f0ff55, inset 0 0 14px #00f0ff10; }
-.neon-card:hover.glow-pink { box-shadow: 0 0 18px #ff00aa55, inset 0 0 14px #ff00aa10; }
-.neon-card:hover.glow-purple { box-shadow: 0 0 18px #b400ff55, inset 0 0 14px #b400ff10; }
-.neon-card:hover.glow-green { box-shadow: 0 0 18px #00ff9d55, inset 0 0 14px #00ff9d10; }
-.neon-card:hover.glow-orange { box-shadow: 0 0 18px #ff6b0055, inset 0 0 14px #ff6b0010; }
-.neon-card:hover.glow-yellow { box-shadow: 0 0 18px #ffee0055, inset 0 0 14px #ffee0010; }
-.neon-card:hover.glow-blue { box-shadow: 0 0 18px #3b82f655, inset 0 0 14px #3b82f610; }
-.neon-card:hover.glow-red { box-shadow: 0 0 18px #ff335555, inset 0 0 14px #ff335510; }
+  .neon-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, transparent, rgba(255, 255, 255, 0.05));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
 
-/* Scrollbar */
+  .glow-cyan { border-color: #00f0ff55; box-shadow: 0 0 12px #00f0ff26, inset 0 0 12px #00f0ff08; }
+  .glow-pink { border-color: #ff00aa55; box-shadow: 0 0 12px #ff00aa26, inset 0 0 12px #ff00aa08; }
+  .glow-purple { border-color: #b400ff55; box-shadow: 0 0 12px #b400ff26, inset 0 0 12px #b400ff08; }
+  .glow-green { border-color: #00ff9d55; box-shadow: 0 0 12px #00ff9d26, inset 0 0 12px #00ff9d08; }
+  .glow-orange { border-color: #ff6b0055; box-shadow: 0 0 12px #ff6b0026, inset 0 0 12px #ff6b0008; }
+  .glow-yellow { border-color: #ffee0055; box-shadow: 0 0 12px #ffee0026, inset 0 0 12px #ffee0008; }
+  .glow-blue { border-color: #3b82f655; box-shadow: 0 0 12px #3b82f626, inset 0 0 12px #3b82f608; }
+  .glow-red { border-color: #ff335555; box-shadow: 0 0 12px #ff335526, inset 0 0 12px #ff335508; }
+
+  .neon-card:hover.glow-cyan { box-shadow: 0 0 18px #00f0ff4d, inset 0 0 14px #00f0ff10; }
+  .neon-card:hover.glow-pink { box-shadow: 0 0 18px #ff00aa4d, inset 0 0 14px #ff00aa10; }
+  .neon-card:hover.glow-purple { box-shadow: 0 0 18px #b400ff4d, inset 0 0 14px #b400ff10; }
+  .neon-card:hover.glow-green { box-shadow: 0 0 18px #00ff9d4d, inset 0 0 14px #00ff9d10; }
+  .neon-card:hover.glow-orange { box-shadow: 0 0 18px #ff6b004d, inset 0 0 14px #ff6b0010; }
+  .neon-card:hover.glow-yellow { box-shadow: 0 0 18px #ffee004d, inset 0 0 14px #ffee0010; }
+  .neon-card:hover.glow-blue { box-shadow: 0 0 18px #3b82f64d, inset 0 0 14px #3b82f610; }
+  .neon-card:hover.glow-red { box-shadow: 0 0 18px #ff33554d, inset 0 0 14px #ff335510; }
+
+  .mesh-grid {
+    background-image: radial-gradient(circle, #3a3a55 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .input-neon {
+    width: 100%;
+    border-radius: 8px;
+    border: 1px solid #23233a;
+    background: #0a0a13;
+    padding: 0.55rem 0.7rem;
+    font-size: 0.8rem;
+    color: #e2e8f0;
+    outline: none;
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+  }
+  .input-neon::placeholder {
+    color: #52526b;
+  }
+  .input-neon:focus {
+    border-color: #00f0ff66;
+    box-shadow: 0 0 0 3px #00f0ff14;
+  }
+
+  .range-neon {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #00f0ff66, #b400ff66);
+    outline: none;
+  }
+  .range-neon::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 999px;
+    background: #0b0b14;
+    border: 2px solid #00f0ff;
+    box-shadow: 0 0 10px #00f0ff88;
+    cursor: pointer;
+  }
+  .range-neon::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 999px;
+    background: #0b0b14;
+    border: 2px solid #00f0ff;
+    box-shadow: 0 0 10px #00f0ff88;
+    cursor: pointer;
+  }
+
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #00f0ff, #7a5cff);
+    color: #05050a;
+    font-weight: 600;
+    font-size: 0.75rem;
+    padding: 0.6rem 0.9rem;
+    transition: filter 150ms ease, transform 150ms ease;
+  }
+  .btn-primary:hover {
+    filter: brightness(1.1);
+  }
+  .btn-primary:active {
+    transform: translateY(1px);
+  }
+  .btn-primary:disabled {
+    opacity: 0.4;
+    filter: grayscale(0.4);
+    cursor: not-allowed;
+  }
+
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    border-radius: 8px;
+    border: 1px solid #26263d;
+    background: #0d0d17;
+    color: #cbd5e1;
+    font-size: 0.7rem;
+    padding: 0.35rem 0.6rem;
+    transition: background 150ms ease, border-color 150ms ease;
+  }
+  .btn-ghost:hover {
+    background: #141422;
+    border-color: #34345a;
+  }
+}
+
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -74,7 +190,6 @@ body {
   background: #2a2a40;
 }
 
-/* Connection lines animation */
 @keyframes dash {
   to {
     stroke-dashoffset: -24;
@@ -84,11 +199,41 @@ body {
   animation: dash 1.8s linear infinite;
 }
 
-/* Soft pulse for central node */
 @keyframes soft-pulse {
-  0%, 100% { opacity: 0.15; transform: scale(1); }
-  50% { opacity: 0.28; transform: scale(1.04); }
+  0%, 100% {
+    box-shadow: 0 0 28px rgba(0, 240, 255, 0.2);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 46px rgba(0, 240, 255, 0.42);
+    transform: scale(1.025);
+  }
 }
 .animate-soft-pulse {
   animation: soft-pulse 3s ease-in-out infinite;
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-rise {
+  animation: rise 260ms ease-out both;
+}
+
+@keyframes sheet-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-sheet {
+  animation: sheet-up 240ms ease-out both;
+}
+
+@keyframes bar-grow {
+  from { transform: scaleY(0.15); }
+  to { transform: scaleY(1); }
+}
+.animate-bar {
+  transform-origin: bottom;
+  animation: bar-grow 500ms ease-out both;
 }

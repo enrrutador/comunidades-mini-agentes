@@ -1,470 +1,431 @@
 "use client";
 
-import { useState } from "react";
-
-const TABS = ["Global", "Bots", "Runs", "Rules", "Memory"] as const;
-type Tab = (typeof TABS)[number];
-
-const COMMUNITIES = [
-  { id: "gatos", name: "Comunidad Gatos", color: "cyan", agents: 48, status: "active" },
-  { id: "tech", name: "Tech & IA", color: "purple", agents: 32, status: "active" },
-  { id: "deportes", name: "Deportes", color: "green", agents: 27, status: "active" },
-  { id: "historia", name: "Historia", color: "orange", agents: 19, status: "idle" },
-  { id: "entretenimiento", name: "Entretenimiento", color: "pink", agents: 41, status: "active" },
-];
-
-const AGENT_CARDS = [
-  { name: "Orquestador", tag: "OR", color: "cyan", desc: "LLM Central", status: "Enabled" },
-  { name: "Persona Manager", tag: "PM", color: "purple", desc: "Identidades", status: "Enabled" },
-  { name: "Memory Core", tag: "MC", color: "green", desc: "Memoria", status: "Enabled" },
-  { name: "Task Queue", tag: "TQ", color: "orange", desc: "Cola de tareas", status: "Enabled" },
-  { name: "Social Adapter", tag: "SA", color: "pink", desc: "Facebook", status: "Enabled" },
-  { name: "Router LLM", tag: "RL", color: "yellow", desc: "Multiproveedor", status: "Enabled" },
-  { name: "Relation Graph", tag: "RG", color: "blue", desc: "Relaciones", status: "Enabled" },
-  { name: "Activity Log", tag: "AL", color: "red", desc: "Eventos", status: "Enabled" },
-];
-
-const RUNS = [
-  { id: "r1", type: "generar_publicacion", community: "gatos", character: "Luna", model: "gpt-4o-mini", status: "completada", time: "10:21:04" },
-  { id: "r2", type: "responder_comentario", community: "tech", character: "Nexus", model: "claude-3.5", status: "en_ejecucion", time: "10:22:18" },
-  { id: "r3", type: "actualizar_memoria", community: "gatos", character: "Milo", model: "gpt-4o-mini", status: "completada", time: "10:23:01" },
-  { id: "r4", type: "planificar_actividad", community: "deportes", character: "—", model: "gemini-1.5", status: "pendiente", time: "10:24:00" },
-  { id: "r5", type: "sincronizar_pagina", community: "entretenimiento", character: "—", model: "local", status: "fallida", time: "10:24:33" },
-];
-
-const MEMORY_ENTRIES = [
-  { id: "m1", scope: "individual", owner: "Luna", summary: "Publicó historia sobre Milo. Sofi comentó.", time: "ayer" },
-  { id: "m2", scope: "colectiva", owner: "Comunidad Gatos", summary: "Tema recurrente: adoptabilidad de gatos callejeros.", time: "2 días" },
-  { id: "m3", scope: "episódica", owner: "Bruno + Sofi", summary: "Conversación sobre veterinaria en zona norte.", time: "3 días" },
-  { id: "m4", scope: "individual", owner: "Nexus", summary: "Interés creciente en modelos open-source.", time: "hoy" },
-];
-
-const glowClass: Record<string, string> = {
-  cyan: "glow-cyan",
-  pink: "glow-pink",
-  purple: "glow-purple",
-  green: "glow-green",
-  orange: "glow-orange",
-  yellow: "glow-yellow",
-  blue: "glow-blue",
-  red: "glow-red",
-};
-
-const textColor: Record<string, string> = {
-  cyan: "text-neon-cyan",
-  pink: "text-neon-pink",
-  purple: "text-neon-purple",
-  green: "text-neon-green",
-  orange: "text-neon-orange",
-  yellow: "text-neon-yellow",
-  blue: "text-neon-blue",
-  red: "text-neon-red",
-};
-
-const statusColor: Record<string, string> = {
-  completada: "text-neon-green",
-  en_ejecucion: "text-neon-cyan",
-  pendiente: "text-neon-yellow",
-  fallida: "text-neon-red",
-};
+import { useEffect, useRef, useState } from "react";
+import { Header } from "@/components/Header";
+import { GlobalView } from "@/components/GlobalView";
+import { BotsView } from "@/components/BotsView";
+import { RunsView } from "@/components/RunsView";
+import { RulesView } from "@/components/RulesView";
+import { MemoryView } from "@/components/MemoryView";
+import { CommunityView } from "@/components/CommunityView";
+import { SettingsModal } from "@/components/SettingsModal";
+import { BotConfigModal } from "@/components/BotCard";
+import { CharacterConfigModal } from "@/components/CharacterCard";
+import { useStored } from "@/lib/useStored";
+import { activeProvider, callLLM, llmConfigured } from "@/lib/llm";
+import { timeNow, uid } from "@/lib/theme";
+import {
+  ALL_BOTS,
+  CHARACTERS,
+  COMMUNITIES,
+  DEFAULT_RULES,
+  DEFAULT_SETTINGS,
+  INITIAL_MEMORY,
+  INITIAL_RUNS,
+  SOCIAL_ACCOUNTS,
+  initialLogs,
+} from "@/lib/data";
+import type {
+  Bot,
+  Character,
+  Color,
+  LogEntry,
+  MemoryEntry,
+  Rule,
+  RunRecord,
+  RunState,
+  Settings,
+  Tab,
+  Unit,
+} from "@/lib/types";
 
 export default function PulseOS() {
+  const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("Global");
+  const [settings, setSettings] = useStored<Settings>(
+    "pulse.settings.v1",
+    DEFAULT_SETTINGS,
+  );
+  const [bots, setBots] = useStored<Bot[]>("pulse.bots.v1", [...ALL_BOTS]);
+  const [rules, setRules] = useStored<Rule[]>("pulse.rules.v1", [
+    ...DEFAULT_RULES,
+  ]);
+  const [memories, setMemories] = useStored<MemoryEntry[]>(
+    "pulse.memory.v1",
+    [...INITIAL_MEMORY],
+  );
+  const [characters, setCharacters] = useStored<Character[]>(
+    "pulse.characters.v1",
+    [...CHARACTERS],
+  );
+  const [communities] = useStored("pulse.communities.v1", [...COMMUNITIES]);
+  const [accounts, setAccounts] = useStored(
+    "pulse.accounts.v1",
+    [...SOCIAL_ACCOUNTS],
+  );
+  const [runs, setRuns] = useStored<RunRecord[]>("pulse.runs.v1", [
+    ...INITIAL_RUNS,
+  ]);
+  const [workspace, setWorkspace] = useStored("pulse.workspace.v1", "pulse-os");
+
+  const [logs, setLogs] = useState<LogEntry[]>(initialLogs);
+  const [run, setRun] = useState<RunState>({
+    status: "idle",
+    units: [],
+    prompt: "",
+    expected: 0,
+  });
+  const [llmReply, setLlmReply] = useState("");
+  const [llmError, setLlmError] = useState("");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [botEditing, setBotEditing] = useState<Bot | null>(null);
+  const [characterEditing, setCharacterEditing] = useState<Character | null>(
+    null,
+  );
+
+  const tokenRef = useRef(0);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const provider = activeProvider(settings);
+  const providerName = provider?.name ?? "sin proveedor";
+  const modelName = provider?.model ?? "sin modelo";
+  const configured = llmConfigured(settings);
+  const workspaceName =
+    communities.find((community) => community.id === workspace)?.name ??
+    workspace;
+
+  useEffect(() => {
+    setMounted(true);
+    return () => {
+      tokenRef.current += 1;
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  function addLog(source: string, message: string, color?: Color) {
+    const entry: LogEntry = {
+      id: uid("log"),
+      time: timeNow(),
+      source,
+      message,
+      color,
+    };
+    setLogs((prev) => [...prev.slice(-199), entry]);
+    return entry;
+  }
+
+  function startRun(prompt: string) {
+    if (run.status === "running") return;
+
+    const enabled = bots.filter((bot) => bot.enabled);
+    if (enabled.length === 0) {
+      addLog("pulse", "no hay bots habilitados para ejecutar", "red");
+      return;
+    }
+
+    const ordered = [...enabled].sort(
+      (a, b) => Number(b.connected) - Number(a.connected),
+    );
+    const pool = ordered.slice(0, 15);
+    const expected = Math.max(6, Math.min(15, pool.length));
+    const token = tokenRef.current + 1;
+    tokenRef.current = token;
+    const startMs = Date.now();
+    const startedAt = new Date(startMs).toISOString();
+    const runLogs: LogEntry[] = [];
+    const collected: Unit[] = [];
+
+    function pushLog(source: string, message: string, color?: Color) {
+      runLogs.push(addLog(source, message, color));
+    }
+
+    setRun({ status: "running", units: [], prompt, expected });
+    setLlmReply("");
+    setLlmError("");
+    pushLog("orquestador", `objetivo recibido · ${expected} units`, "cyan");
+    pushLog("router", `modelo activo · ${configured ? modelName : "demo"}`, "yellow");
+
+    if (configured) {
+      callLLM(prompt, settings)
+        .then((reply) => {
+          if (tokenRef.current !== token) return;
+          setLlmReply(reply);
+          addLog("llm", `respuesta recibida · ${reply.length} caracteres`, "purple");
+        })
+        .catch((error: unknown) => {
+          if (tokenRef.current !== token) return;
+          setLlmError(
+            error instanceof Error ? error.message : "Error al llamar al LLM.",
+          );
+          addLog("llm", "error de proveedor · revisá la configuración", "red");
+        });
+    } else {
+      const plan = pool
+        .slice(0, 3)
+        .map((bot, index) => `${index + 1}. ${bot.name} (${bot.tag}) — ${bot.desc}`)
+        .join("\n");
+      setLlmReply(
+        `Modo demo · sin API key.\n\nPlan para “${prompt}”:\n${plan}\n\nLas unidades se ejecutan de forma simulada.`,
+      );
+      addLog("llm", "plan demo generado sin proveedor", "yellow");
+    }
+
+    let index = 0;
+
+    function finish() {
+      const verified = collected.filter(
+        (unit) => unit.status === "verified",
+      ).length;
+      const rejected = collected.filter(
+        (unit) => unit.status === "rejected",
+      ).length;
+      setRun({
+        status: "complete",
+        units: collected.map((unit) => ({ ...unit })),
+        prompt,
+        expected,
+      });
+      pushLog(
+        "check",
+        `${verified} verified · ${rejected} ${
+          rejected === 1 ? "rechazada" : "rechazadas"
+        }`,
+        rejected > 0 ? "yellow" : "green",
+      );
+      pushLog("output", "run complete · verified output", "green");
+      const record: RunRecord = {
+        id: uid("run"),
+        prompt,
+        model: configured ? modelName : "demo",
+        status: "complete",
+        units: collected.length,
+        verified,
+        rejected,
+        startedAt,
+        durationMs: Date.now() - startMs,
+        logs: runLogs.slice(-24),
+      };
+      setRuns((prev) => [record, ...prev].slice(0, 30));
+    }
+
+    function step() {
+      if (tokenRef.current !== token) return;
+
+      if (index > 0) {
+        const previous = collected[index - 1];
+        previous.status =
+          Math.random() < (settings.autoVerify ? 0.08 : 0.16)
+            ? "rejected"
+            : "verified";
+        setRun((current) => ({
+          ...current,
+          units: collected.map((unit) => ({ ...unit })),
+        }));
+      }
+
+      if (index >= expected) {
+        finish();
+        return;
+      }
+
+      const bot = pool[index];
+      const unit: Unit = {
+        id: String(index + 1).padStart(2, "0"),
+        botId: bot.id,
+        label: bot.name,
+        status: "running",
+      };
+      collected.push(unit);
+      setRun((current) => ({
+        ...current,
+        units: collected.map((item) => ({ ...item })),
+      }));
+      pushLog("mesh", `unit ${unit.id} · ${bot.name}`, bot.color);
+      index += 1;
+      timerRef.current = setTimeout(step, 620 + Math.random() * 260);
+    }
+
+    step();
+  }
+
+  function stopRun() {
+    tokenRef.current += 1;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setRun((current) => ({ ...current, status: "error" }));
+    addLog("output", "corrida detenida por el operador", "red");
+  }
+
+  function saveBot(bot: Bot) {
+    setBots((prev) => prev.map((item) => (item.id === bot.id ? bot : item)));
+    addLog("config", `bot actualizado · ${bot.name}`, "cyan");
+  }
+
+  function toggleBotConnection(bot: Bot) {
+    const next = !bot.connected;
+    setBots((prev) =>
+      prev.map((item) =>
+        item.id === bot.id ? { ...item, connected: next } : item,
+      ),
+    );
+    addLog(
+      "mesh",
+      `${bot.name} ${next ? "conectado al" : "desconectado del"} mesh`,
+      next ? "green" : "yellow",
+    );
+  }
+
+  function saveCharacter(character: Character) {
+    const exists = characters.some((item) => item.id === character.id);
+    setCharacters((prev) =>
+      exists
+        ? prev.map((item) => (item.id === character.id ? character : item))
+        : [...prev, character],
+    );
+    addLog(
+      "persona",
+      `${exists ? "personaje actualizado" : "personaje creado"} · ${character.name}`,
+      "purple",
+    );
+  }
+
+  function toggleAccount(id: string) {
+    setAccounts((prev) =>
+      prev.map((account) => {
+        if (account.id !== id) return account;
+        const connected = account.status === "conectado";
+        return {
+          ...account,
+          status: connected ? "desconectado" : "conectado",
+          lastSync: connected ? account.lastSync : "ahora",
+        };
+      }),
+    );
+    addLog("social", "estado de la Página actualizado", "pink");
+  }
+
+  function selectWorkspace(id: string) {
+    setWorkspace(id);
+    const name = communities.find((community) => community.id === id)?.name;
+    addLog("workspace", `workspace activo · ${name ?? id}`, "cyan");
+  }
+
+  function saveSettings(next: Settings) {
+    setSettings(next);
+    addLog("config", "configuración multiproveedor guardada", "green");
+  }
+
+  function refreshMesh() {
+    addLog(
+      "pulse",
+      `mesh refreshed · ${bots.filter((bot) => bot.enabled).length} bots · ${
+        characters.length
+      } personajes`,
+      "green",
+    );
+  }
+
+  if (!mounted) {
+    return (
+      <div className="flex h-dvh items-center justify-center bg-[#050508] font-mono text-[10px] tracking-[0.2em] text-slate-600">
+        INICIANDO PULSE MESH…
+      </div>
+    );
+  }
+
+  const verified = run.units.filter((unit) => unit.status === "verified").length;
+  const rejected = run.units.filter((unit) => unit.status === "rejected").length;
 
   return (
-    <div className="h-dvh flex flex-col bg-[#050508] text-slate-200">
-      {/* Header */}
-      <header className="flex items-center gap-3 px-3 sm:px-5 py-2.5 sm:py-3 border-b border-[#1a1a2e] bg-[#08080f]/95 backdrop-blur z-20">
-        <div className="flex items-center gap-2 shrink-0">
-          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-neon-cyan to-neon-purple flex items-center justify-center text-[10px] font-bold text-black shadow-neon-cyan">
-            P
-          </div>
-          <span className="hidden sm:inline font-semibold tracking-wide text-sm whitespace-nowrap">
-            PULSE <span className="text-neon-cyan">OS</span>
-          </span>
-        </div>
+    <div className="flex h-dvh flex-col overflow-hidden bg-[#050508] text-slate-200">
+      <Header
+        activeTab={activeTab}
+        onTab={setActiveTab}
+        workspace={workspace}
+        onWorkspace={selectWorkspace}
+        onRefresh={refreshMesh}
+        stats={{
+          online: bots.filter((bot) => bot.enabled).length,
+          units: run.units.length,
+          verified,
+          rejected,
+          rules: rules.filter((rule) => rule.active).length,
+        }}
+        configured={configured}
+        model={modelName}
+        running={run.status === "running"}
+        onSettings={() => setSettingsOpen(true)}
+      />
 
-        <nav className="flex items-center gap-1 flex-1 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {TABS.map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-2 sm:px-3 py-1.5 text-xs rounded-md transition whitespace-nowrap shrink-0 ${
-                activeTab === tab
-                  ? "bg-[#12121f] text-neon-cyan border border-neon-cyan/30"
-                  : "text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
-        </nav>
-
-        <div className="hidden lg:flex items-center gap-4 text-xs font-mono shrink-0">
-          <span className="text-slate-400">
-            <span className="text-neon-cyan font-semibold">167</span> personajes
-          </span>
-          <span className="text-slate-400">
-            <span className="text-neon-green font-semibold">5</span> comunidades
-          </span>
-          <span className="text-slate-400">
-            <span className="text-neon-yellow font-semibold">23</span> tareas
-          </span>
-          <span className="text-slate-400">
-            <span className="text-neon-pink font-semibold">0</span> errores
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <span className="w-2 h-2 rounded-full bg-neon-green animate-pulse" />
-          <span className="text-neon-green font-medium tracking-wider text-xs">LIVE</span>
-        </div>
-      </header>
-
-      {/* Main content */}
-      <main className="flex-1 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden">
-        {activeTab === "Global" && <GlobalMesh />}
-        {activeTab === "Bots" && <BotsView />}
-        {activeTab === "Runs" && <RunsView />}
-        {activeTab === "Rules" && <RulesView />}
-        {activeTab === "Memory" && <MemoryView />}
+      <main className="min-h-0 flex-1 overflow-hidden">
+        {activeTab === "Global" ? (
+          <GlobalView
+            bots={bots}
+            characters={characters}
+            run={run}
+            logs={logs}
+            settings={settings}
+            configured={configured}
+            providerName={providerName}
+            activeModel={modelName}
+            llmReply={llmReply}
+            llmError={llmError}
+            workspaceId={workspace}
+            workspaceName={workspaceName}
+            onRun={startRun}
+            onStop={stopRun}
+            onOpenSettings={() => setSettingsOpen(true)}
+            onConfigureBot={setBotEditing}
+            onConnectBot={toggleBotConnection}
+            onConfigureCharacter={setCharacterEditing}
+            onClearLogs={() => setLogs([])}
+          />
+        ) : activeTab === "Bots" ? (
+          <BotsView
+            bots={bots}
+            settings={settings}
+            onConfigure={setBotEditing}
+            onConnect={toggleBotConnection}
+          />
+        ) : activeTab === "Runs" ? (
+          <RunsView runs={runs} onClear={() => setRuns([])} />
+        ) : activeTab === "Rules" ? (
+          <RulesView rules={rules} onChange={setRules} />
+        ) : activeTab === "Memory" ? (
+          <MemoryView memories={memories} onChange={setMemories} />
+        ) : (
+          <CommunityView
+            communities={communities}
+            characters={characters}
+            accounts={accounts}
+            workspaceId={workspace}
+            onSelectWorkspace={selectWorkspace}
+            onSaveCharacter={saveCharacter}
+            onToggleAccount={toggleAccount}
+          />
+        )}
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-[#1a1a2e] bg-[#08080f] flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-3 sm:px-4 py-2 sm:h-8 text-[9px] sm:text-[10px] font-mono text-slate-500">
-        <div className="flex flex-wrap gap-x-4 gap-y-1">
-          <span>pulse-os v0.1.0</span>
-          <span>backend · online</span>
-          <span>router · multiproveedor</span>
-        </div>
-        <div className="flex gap-3">
-          <span>Fase 1 · Núcleo</span>
-          <span className="text-neon-cyan">localhost:3000</span>
-        </div>
-      </footer>
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        settings={settings}
+        onSave={saveSettings}
+      />
+      <BotConfigModal
+        key={botEditing?.id ?? "bot-closed"}
+        open={botEditing !== null}
+        bot={botEditing}
+        globalModel={modelName}
+        onClose={() => setBotEditing(null)}
+        onSave={saveBot}
+      />
+      <CharacterConfigModal
+        key={characterEditing?.id ?? "character-closed"}
+        open={characterEditing !== null}
+        character={characterEditing}
+        onClose={() => setCharacterEditing(null)}
+        onSave={saveCharacter}
+      />
     </div>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/*  GLOBAL / MESH VIEW                                                        */
-/* -------------------------------------------------------------------------- */
-function GlobalMesh() {
-  return (
-    <>
-      {/* Left graph panel */}
-      <section className="w-full md:w-[46%] relative border-b md:border-b-0 md:border-r border-[#1a1a2e] flex flex-col shrink-0 md:shrink">
-        <div className="px-3 sm:px-5 pt-4 text-xs text-slate-500 font-mono flex items-center justify-between gap-2">
-          <span>global / pulse-os</span>
-          <span className="text-neon-cyan/70">mesh · live</span>
-        </div>
-
-        <div className="flex-1 relative min-h-[440px] md:min-h-0">
-          {/* Dot grid */}
-          <div
-            className="absolute inset-0 opacity-[0.15]"
-            style={{
-              backgroundImage: "radial-gradient(circle, #445 1px, transparent 1px)",
-              backgroundSize: "26px 26px",
-            }}
-          />
-
-          {/* SVG connections */}
-          <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 1 }}>
-            <defs>
-              <linearGradient id="beamCyan" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#00f0ff" stopOpacity="0" />
-                <stop offset="50%" stopColor="#00f0ff" stopOpacity="0.7" />
-                <stop offset="100%" stopColor="#00f0ff" stopOpacity="0" />
-              </linearGradient>
-              <linearGradient id="beamPurple" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#b400ff" stopOpacity="0" />
-                <stop offset="50%" stopColor="#b400ff" stopOpacity="0.6" />
-                <stop offset="100%" stopColor="#b400ff" stopOpacity="0" />
-              </linearGradient>
-              <linearGradient id="beamGreen" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#00ff9d" stopOpacity="0" />
-                <stop offset="50%" stopColor="#00ff9d" stopOpacity="0.6" />
-                <stop offset="100%" stopColor="#00ff9d" stopOpacity="0" />
-              </linearGradient>
-              <linearGradient id="beamPink" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#ff00aa" stopOpacity="0" />
-                <stop offset="50%" stopColor="#ff00aa" stopOpacity="0.6" />
-                <stop offset="100%" stopColor="#ff00aa" stopOpacity="0" />
-              </linearGradient>
-              <linearGradient id="beamOrange" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#ff6b00" stopOpacity="0" />
-                <stop offset="50%" stopColor="#ff6b00" stopOpacity="0.6" />
-                <stop offset="100%" stopColor="#ff6b00" stopOpacity="0" />
-              </linearGradient>
-            </defs>
-
-            {/* Center to nodes */}
-            <line x1="50%" y1="48%" x2="22%" y2="22%" stroke="url(#beamPurple)" strokeWidth="1.5" className="animate-dash" strokeDasharray="6 4" />
-            <line x1="50%" y1="48%" x2="78%" y2="20%" stroke="url(#beamGreen)" strokeWidth="1.5" className="animate-dash" strokeDasharray="6 4" />
-            <line x1="50%" y1="48%" x2="20%" y2="72%" stroke="url(#beamOrange)" strokeWidth="1.5" className="animate-dash" strokeDasharray="6 4" />
-            <line x1="50%" y1="48%" x2="80%" y2="75%" stroke="url(#beamPink)" strokeWidth="1.5" className="animate-dash" strokeDasharray="6 4" />
-            <line x1="50%" y1="48%" x2="50%" y2="18%" stroke="url(#beamCyan)" strokeWidth="1.5" className="animate-dash" strokeDasharray="6 4" />
-          </svg>
-
-          {/* Central node */}
-          <div className="absolute left-1/2 top-[48%] -translate-x-1/2 -translate-y-1/2 z-10 flex flex-col items-center">
-            <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-full bg-[#0c0c18] border-2 border-neon-cyan shadow-neon-cyan flex items-center justify-center relative">
-              <div className="absolute inset-0 rounded-full bg-neon-cyan/15 animate-pulse" />
-              <div className="absolute -inset-2 sm:-inset-3 rounded-full border border-neon-cyan/20" />
-              <div className="text-2xl sm:text-4xl relative z-10">◉</div>
-            </div>
-            <div className="mt-2 sm:mt-3 text-center px-2">
-              <div className="text-xs sm:text-sm font-semibold text-neon-cyan tracking-wide">LLM Orquestador</div>
-              <div className="text-[9px] sm:text-[10px] text-slate-500 font-mono mt-0.5">core · multiproveedor · failover</div>
-            </div>
-          </div>
-
-          {/* Orbit nodes */}
-          <div className="!absolute top-[8%] sm:top-[14%] left-1/2 -translate-x-1/2 neon-card glow-cyan px-2.5 py-1.5 sm:px-3.5 sm:py-2 text-[10px] sm:text-[11px] z-10 whitespace-nowrap">
-            <div className="font-medium text-neon-cyan">Router LLM</div>
-            <div className="text-slate-400 text-[9px] sm:text-[10px]">3 proveedores · activo</div>
-          </div>
-
-          <div className="!absolute top-[27%] sm:top-[18%] left-[3%] sm:left-[12%] neon-card glow-purple px-2.5 py-1.5 sm:px-3.5 sm:py-2 text-[10px] sm:text-[11px] z-10 whitespace-nowrap">
-            <div className="font-medium text-neon-purple">Personajes</div>
-            <div className="text-slate-400 text-[9px] sm:text-[10px]">167 activos</div>
-          </div>
-
-          <div className="!absolute top-[24%] sm:top-[16%] right-[3%] sm:right-[10%] neon-card glow-green px-2.5 py-1.5 sm:px-3.5 sm:py-2 text-[10px] sm:text-[11px] z-10 whitespace-nowrap">
-            <div className="font-medium text-neon-green">Memoria</div>
-            <div className="text-slate-400 text-[9px] sm:text-[10px]">individual + colectiva</div>
-          </div>
-
-          <div className="!absolute bottom-[20%] sm:bottom-[22%] left-[3%] sm:left-[10%] neon-card glow-orange px-2.5 py-1.5 sm:px-3.5 sm:py-2 text-[10px] sm:text-[11px] z-10 whitespace-nowrap">
-            <div className="font-medium text-neon-orange">Task Queue</div>
-            <div className="text-slate-400 text-[9px] sm:text-[10px]">23 en cola</div>
-          </div>
-
-          <div className="!absolute bottom-[14%] sm:bottom-[18%] right-[3%] sm:right-[10%] neon-card glow-pink px-2.5 py-1.5 sm:px-3.5 sm:py-2 text-[10px] sm:text-[11px] z-10 whitespace-nowrap">
-            <div className="font-medium text-neon-pink">Social Adapter</div>
-            <div className="text-slate-400 text-[9px] sm:text-[10px]">Facebook · conectado</div>
-          </div>
-        </div>
-
-        {/* Activity log */}
-        <div className="px-3 sm:px-5 py-3 border-t border-[#1a1a2e] font-mono text-[9px] sm:text-[10px] text-slate-500 space-y-1 sm:space-y-0.5 bg-[#07070c]">
-          <div><span className="text-neon-cyan">10:24:01</span> orquestador → tarea creada · comunidad/gatos</div>
-          <div><span className="text-neon-green">10:24:03</span> memory · recuperado contexto · personaje/luna</div>
-          <div><span className="text-neon-yellow">10:24:05</span> router · modelo seleccionado · gpt-4o-mini</div>
-          <div><span className="text-neon-pink">10:24:08</span> social · publicación preparada · página/luna-cats</div>
-        </div>
-      </section>
-
-      {/* Right panel */}
-      <section className="flex-1 w-full p-3 sm:p-5 md:overflow-y-auto">
-        <div className="flex flex-wrap items-center justify-between gap-1 mb-4">
-          <h2 className="text-sm font-medium text-slate-300">Módulos del sistema</h2>
-          <span className="text-[10px] text-slate-500 font-mono">8 módulos · todos online</span>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
-          {AGENT_CARDS.map((card) => (
-            <div
-              key={card.tag}
-              className={`neon-card ${glowClass[card.color]} p-3.5 hover:scale-[1.015] transition-transform cursor-pointer`}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${textColor[card.color]} bg-white/5`}>
-                      {card.tag}
-                    </span>
-                    <span className="text-sm font-medium">{card.name}</span>
-                  </div>
-                  <div className="text-[11px] text-slate-400 mt-1">{card.desc}</div>
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <span className="w-1.5 h-1.5 rounded-full bg-neon-green" />
-                  <span className="text-[10px] text-neon-green">{card.status}</span>
-                </div>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2 text-[10px] text-slate-500">
-                <span className="px-1.5 py-0.5 rounded bg-white/5">own context</span>
-                <span className="px-1.5 py-0.5 rounded bg-white/5">loop · max 3</span>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-1 mb-3">
-          <h2 className="text-sm font-medium text-slate-300">Comunidades</h2>
-          <span className="text-[10px] text-slate-500 font-mono">5 activas</span>
-        </div>
-
-        <div className="space-y-2.5">
-          {COMMUNITIES.map((c) => (
-            <div
-              key={c.id}
-              className={`neon-card ${glowClass[c.color]} px-3 sm:px-4 py-3 flex items-center justify-between gap-3 hover:bg-white/[0.02] transition cursor-pointer`}
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <div
-                  className="w-1.5 h-9 rounded-full shrink-0"
-                  style={{
-                    background:
-                      c.color === "cyan"
-                        ? "#00f0ff"
-                        : c.color === "purple"
-                        ? "#b400ff"
-                        : c.color === "green"
-                        ? "#00ff9d"
-                        : c.color === "orange"
-                        ? "#ff6b00"
-                        : "#ff00aa",
-                  }}
-                />
-                <div className="min-w-0">
-                  <div className="text-sm font-medium truncate">{c.name}</div>
-                  <div className="text-[11px] text-slate-400">{c.agents} personajes</div>
-                </div>
-              </div>
-              <span className={`text-[10px] shrink-0 ${c.status === "active" ? "text-neon-green" : "text-slate-500"}`}>
-                {c.status === "active" ? "● activo" : "○ idle"}
-              </span>
-            </div>
-          ))}
-        </div>
-      </section>
-    </>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/*  BOTS VIEW                                                                 */
-/* -------------------------------------------------------------------------- */
-function BotsView() {
-  return (
-    <section className="flex-1 w-full overflow-visible md:overflow-y-auto p-4 sm:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-6">
-        <div>
-          <h2 className="text-lg font-medium text-slate-200">Módulos / Bots</h2>
-          <p className="text-xs text-slate-500 mt-1">Componentes del sistema que ejecutan la lógica de Pulse OS</p>
-        </div>
-        <span className="text-[10px] font-mono text-neon-green">8 / 8 online</span>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {AGENT_CARDS.map((card) => (
-          <div key={card.tag} className={`neon-card ${glowClass[card.color]} p-5`}>
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <span className={`text-xs font-bold px-2 py-0.5 rounded ${textColor[card.color]} bg-white/5`}>
-                  {card.tag}
-                </span>
-                <span className="font-medium">{card.name}</span>
-              </div>
-              <span className="flex items-center gap-1 text-[10px] text-neon-green">
-                <span className="w-1.5 h-1.5 rounded-full bg-neon-green" /> Enabled
-              </span>
-            </div>
-            <p className="text-sm text-slate-400 mb-4">{card.desc}</p>
-            <div className="flex flex-wrap gap-2 text-[10px] text-slate-500">
-              <span className="px-2 py-1 rounded bg-white/5">own context</span>
-              <span className="px-2 py-1 rounded bg-white/5">loop · max 3</span>
-              <span className="px-2 py-1 rounded bg-white/5">check pass cond.</span>
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/*  RUNS VIEW                                                                 */
-/* -------------------------------------------------------------------------- */
-function RunsView() {
-  return (
-    <section className="flex-1 w-full overflow-visible md:overflow-y-auto p-4 sm:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-6">
-        <div>
-          <h2 className="text-lg font-medium text-slate-200">Runs / Tareas</h2>
-          <p className="text-xs text-slate-500 mt-1">Ejecuciones del orquestador y trabajadores</p>
-        </div>
-        <span className="text-[10px] font-mono text-slate-400">últimas 5</span>
-      </div>
-
-      <div className="space-y-2">
-        {RUNS.map((run) => (
-          <div key={run.id} className="neon-card glow-cyan px-3 sm:px-4 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start sm:items-center gap-3 sm:gap-4 min-w-0">
-              <span className="font-mono text-[10px] text-slate-500 shrink-0 sm:w-16">{run.time}</span>
-              <div className="min-w-0">
-                <div className="text-sm font-medium break-words">{run.type}</div>
-                <div className="text-[11px] text-slate-400 break-words">
-                  {run.community} {run.character !== "—" ? `· ${run.character}` : ""} · {run.model}
-                </div>
-              </div>
-            </div>
-            <span className={`text-[11px] font-mono shrink-0 ${statusColor[run.status]}`}>
-              {run.status.replace("_", " ")}
-            </span>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/*  RULES VIEW                                                                */
-/* -------------------------------------------------------------------------- */
-function RulesView() {
-  return (
-    <section className="flex-1 w-full overflow-visible md:overflow-y-auto p-4 sm:p-6">
-      <div className="mb-6">
-        <h2 className="text-lg font-medium text-slate-200">Rules</h2>
-        <p className="text-xs text-slate-500 mt-1">Reglas editoriales, límites y políticas de comportamiento por comunidad</p>
-      </div>
-
-      <div className="neon-card glow-purple p-5 max-w-2xl">
-        <div className="text-sm text-slate-300 mb-3">Próximamente</div>
-        <ul className="text-xs text-slate-400 space-y-2 list-disc list-inside">
-          <li>Reglas editoriales por comunidad</li>
-          <li>Límites de frecuencia de publicación</li>
-          <li>Filtros de tono y temas prohibidos</li>
-          <li>Políticas de interacción entre personajes</li>
-          <li>Configuración de failover y costos</li>
-        </ul>
-      </div>
-    </section>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/*  MEMORY VIEW                                                               */
-/* -------------------------------------------------------------------------- */
-function MemoryView() {
-  return (
-    <section className="flex-1 w-full overflow-visible md:overflow-y-auto p-4 sm:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-6">
-        <div>
-          <h2 className="text-lg font-medium text-slate-200">Memory</h2>
-          <p className="text-xs text-slate-500 mt-1">Memoria individual, colectiva y episódica</p>
-        </div>
-      </div>
-
-      <div className="space-y-3">
-        {MEMORY_ENTRIES.map((m) => (
-          <div key={m.id} className="neon-card glow-green px-4 py-3">
-            <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-neon-green/10 text-neon-green font-mono">
-                  {m.scope}
-                </span>
-                <span className="text-sm font-medium">{m.owner}</span>
-              </div>
-              <span className="text-[10px] text-slate-500">{m.time}</span>
-            </div>
-            <p className="text-[13px] text-slate-300">{m.summary}</p>
-          </div>
-        ))}
-      </div>
-    </section>
   );
 }
