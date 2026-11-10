@@ -69,180 +69,165 @@ Los permisos avanzados (`pages_manage_posts`, `pages_manage_metadata`) requieren
 
 ---
 
-## 4. Flujo de autenticación (OAuth 2.0)
+## 4. Flujo de autenticación (credenciales en navegador)
 
-### 4.1. Diagrama de flujo
+### 4.1. Principio
+
+**No se usa ninguna API de Facebook.** Toda la interacción se hace a través de un navegador real (Playwright/Chromium) que se loguea con las credenciales de la cuenta (email/usuario + contraseña) y opera la interfaz web de Facebook.
+
+Esto elimina la dependencia de:
+- Facebook App en Meta Developer Console.
+- App Review y permisos.
+- OAuth y tokens de acceso.
+- Rate limits de la Graph API.
+
+### 4.2. Diagrama de flujo
 
 ```
-┌──────────┐     ┌──────────────┐     ┌──────────────┐     ┌────────────┐
-│  Panel   │────▶│  Backend     │────▶│  Facebook    │────▶│  Usuario   │
-│  (admin) │     │  (FastAPI)   │     │  OAuth       │     │  (login)   │
-└──────────┘     └──────────────┘     └──────────────┘     └────────────┘
-                       │                                            │
-                       │◀─────────────────────────────────────────────┘
-                       │         (redirect con code)
+┌──────────┐     ┌──────────────┐     ┌──────────────┐
+│  Panel   │────▶│  Backend     │────▶│  Browser     │
+│  (admin) │     │  (FastAPI)   │     │  Manager     │
+└──────────┘     └──────────────┘     └──────────────┘
+                       │                      │
+                       │                      ▼
+                       │              ┌──────────────┐
+                       │              │  Facebook    │
+                       │              │  (login web) │
+                       │              └──────────────┘
+                       │                      │
+                       │◀─────────────────────┘
+                       │   (storage state guardado)
                        ▼
               ┌──────────────────┐
-              │  Backend         │
-              │  1. code → token │
-              │  2. token → LLT  │
-              │  3. LLT → Pages  │
-              │  4. Guardar todo │
+              │  DB: Cuenta +    │
+              │  SesionNavegador │
               └──────────────────┘
 ```
 
-### 4.2. Pasos detallados
+### 4.3. Pasos detallados
 
-**Paso 1 — Inicio desde el panel**
-- El admin hace clic en "Conectar cuenta de Facebook".
-- El frontend redirige al backend: `GET /api/facebook/login?comunidad_id=...`
-- El backend genera un `state` (CSRF token) y redirige a:
-  ```
-  https://www.facebook.com/v19.0/dialog/oauth?
-    client_id={APP_ID}
-    &redirect_uri={REDIRECT_URI}
-    &scope=pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_metadata
-    &state={STATE}
-    &response_type=code
-  ```
+**Paso 1 — Registro de credenciales desde el panel**
+- El admin abre el panel → tab Comunidad → "Agregar cuenta de Facebook".
+- Ingresa: email/usuario, contraseña, y opcionalmente 2FA (código o app).
+- Las credenciales se envían al backend y se almacenan **cifradas** (Fernet).
+- El frontend nunca guarda credenciales en localStorage ni las muestra.
 
-**Paso 2 — Autorización del usuario**
-- El usuario inicia sesión en Facebook (si no lo está) y autoriza la app.
-- Facebook redirige a: `{REDIRECT_URI}?code={CODE}&state={STATE}`
+**Paso 2 — Login en navegador (backend/worker)**
+- El Browser Manager crea un nuevo Browser Context aislado.
+- Navega a `https://www.facebook.com/login`.
+- Ingresa el email/usuario y la contraseña en los campos del formulario.
+- Si aparece 2FA, espera el código (ingresado por el admin o generado por TOTP).
+- Si aparece checkpoint (verificación de identidad), notifica al admin para intervención manual.
+- Una vez logueado, Facebook redirige al feed principal.
 
-**Paso 3 — Intercambio de code por token (backend)**
-- El backend valida el `state` (CSRF).
-- Llama a:
-  ```
-  GET https://graph.facebook.com/v19.0/oauth/access_token?
-    client_id={APP_ID}
-    &redirect_uri={REDIRECT_URI}
-    &client_secret={APP_SECRET}
-    &code={CODE}
-  ```
-- Recibe un **short-lived user access token** (~1 hora).
+**Paso 3 — Guardar sesión**
+- Se exporta el storage state (cookies + localStorage) del contexto.
+- Se cifra y se guarda en `sesiones_navegador.storage_state_cifrado`.
+- Se actualiza `cuentas.estado_conexion = "conectado"`, `ultima_conexion = now()`.
+- El contexto se cierra (o se mantiene activo si hay tareas pendientes).
 
-**Paso 4 — Extender a long-lived token (backend)**
-- Llama a:
-  ```
-  GET https://graph.facebook.com/v19.0/oauth/access_token?
-    grant_type=fb_exchange_token
-    &client_id={APP_ID}
-    &client_secret={APP_SECRET}
-    &fb_exchange_token={SHORT_LIVED_TOKEN}
-  ```
-- Recibe un **long-lived user access token** (~60 días).
+**Paso 4 — Sesiones posteriores**
+- Al necesitar ejecutar una acción, el Browser Manager:
+  1. Carga el storage state cifrado.
+  2. Crea un nuevo contexto con ese estado.
+  3. Verifica que la sesión siga válida (navega a facebook.com y chequea si sigue logueado).
+  4. Si la sesión expiró, repite el login con las credenciales guardadas.
+  5. Ejecuta la acción.
+  6. Actualiza y guarda el storage state.
 
-**Paso 5 — Obtener Páginas administradas (backend)**
-- Con el long-lived user token, llama a:
-  ```
-  GET https://graph.facebook.com/v19.0/me/accounts?
-    access_token={LLT}
-  ```
-- La respuesta incluye cada Página con su **Page access token** (que no expira si se obtiene con un LLT).
+### 4.4. Manejo de 2FA (autenticación de dos factores)
 
-**Paso 6 — Persistir (backend)**
-- Crear/actualizar registro en `cuentas` con:
-  - `nombre_identificador`: nombre del usuario de Facebook.
-  - `metodo_autenticacion`: `"facebook_oauth"`.
-  - `estado_autorizacion`: `"autorizado"`.
-  - `estado_conexion`: `"conectado"`.
-  - `ultima_conexion`: now().
-  - Token de usuario (long-lived) → almacenado de forma segura (ver §5).
-- Para cada Página devuelta, crear/actualizar registro en `paginas` con:
-  - `id_plataforma`: ID de la Página en Facebook.
-  - `nombre_publico`: nombre de la Página.
-  - `url`: URL de la Página.
-  - `avatar_url`: foto de perfil.
-  - `plataforma`: `"facebook"`.
-  - `estado_conexion`: `"conectado"`.
-  - `capacidades`: JSON con los permisos disponibles.
-  - Token de Página → almacenado de forma segura (ver §5).
+| Método | Implementación |
+|--------|---------------|
+| **TOTP (app autenticadora)** | El admin ingresa el secret TOTP. El sistema genera códigos automáticamente con `pyotp`. |
+| **SMS** | El admin ingresa el código manualmente cuando el sistema lo solicita. |
+| **Confirmación en app** | El sistema notifica al admin para que apruebe en su dispositivo. Timeout de 5 min. |
 
-**Paso 7 — Redirigir al panel**
-- El backend redirige al frontend con un parámetro de éxito: `{FRONTEND_URL}/comunidad?facebook=connected&cuenta_id={ID}`.
-- El panel muestra las Páginas disponibles para asignar a personajes.
+### 4.5. Manejo de checkpoints
 
----
+Facebook puede pedir verificación de identidad (checkpoint) en casos de:
+- Login desde una IP nueva.
+- Comportamiento sospechoso.
+- Cambio de contraseña reciente.
 
-## 4.3. Asignación de Página a Personaje
+En estos casos:
+- El sistema marca la cuenta como `estado_conexion = "checkpoint"`.
+- Notifica al admin con un screenshot del checkpoint.
+- El admin resuelve manualmente (ingresa código, sube foto, etc.).
+- Una vez resuelto, el sistema guarda el nuevo storage state.
 
-Desde el panel de Comunidad:
-
-1. El admin selecciona una Página conectada.
-2. Selecciona un Personaje (o crea uno nuevo).
-3. El backend actualiza `personajes.pagina_id = paginas.id`.
-4. El Personaje queda listo para publicar en esa Página.
-
-Reasignación: cambiar `pagina_id` a otra Página o `NULL` (desvincular). El historial de publicaciones se conserva.
-
----
-
-## 5. Almacenamiento seguro de tokens
+## 5. Almacenamiento seguro de credenciales
 
 ### 5.1. Principio
 
-Los tokens **nunca** se almacenan en texto plano en la base de datos principal ni se exponen al LLM ni al frontend.
+Las credenciales (usuario + contraseña) y el storage state (cookies) se almacenan **cifrados** en la base de datos. Nunca en texto plano, nunca en logs, nunca en el frontend, nunca en conversaciones del LLM.
 
-### 5.2. Opciones de implementación
+### 5.2. Qué se almacena
 
-| Opción | Descripción | Recomendación |
-|--------|-------------|---------------|
-| **A. Columna cifrada en DB** | Usar `cryptography` (Fernet) con una clave maestra en `.env`. Tokens cifrados at-rest. | Fase 1-2 (desarrollo) |
-| **B. Secret manager** | AWS Secrets Manager, GCP Secret Manager, o HashiCorp Vault. | Fase 3+ (producción) |
-| **C. Tabla separada** | Tabla `tokens` con relación a `cuentas`/`paginas`, cifrada. | Alternativa a A |
+| Dato | Ubicación | Cifrado |
+|------|-----------|---------|
+| Email/usuario de Facebook | `cuentas` (campo `nombre_identificador`) | No (no es secreto) |
+| Contraseña | `cuentas.token_usuario_cifrado` (reutilizado como credencial cifrada) | Sí (Fernet) |
+| Secret TOTP (si aplica) | `cuentas.token_usuario_cifrado` (segundo campo o JSON) | Sí (Fernet) |
+| Storage state (cookies + localStorage) | `sesiones_navegador.storage_state_cifrado` | Sí (Fernet) |
+| Proxy asignado | `sesiones_navegador.proxy` | No (no es secreto) |
 
-### 5.3. Implementación recomendada (Fase 1-2)
+### 5.3. Implementación
 
-- Agregar un campo `token_cifrado` (Text) a `cuentas` y `paginas`.
-- Usar `cryptography.fernet.Fernet` con `TOKEN_ENCRYPTION_KEY` en `.env`.
-- Nunca loguear tokens ni incluirlos en respuestas de API.
-- El LLM y el frontend solo ven `estado_conexion` y `nombre_publico`, nunca el token.
+- Usar `cryptography.fernet.Fernet` con `CREDENTIAL_ENCRYPTION_KEY` en `.env`.
+- El frontend envía credenciales por HTTPS al backend.
+- El backend cifra y guarda. Nunca devuelve credenciales al frontend.
+- El Browser Manager descifra en memoria solo cuando necesita hacer login.
+- Las credenciales se borran de memoria después de usarlas.
 
-### 5.4. Campos a agregar en los modelos
+### 5.4. Variables de entorno
 
-```python
-# En Cuenta:
-token_usuario_cifrado: Optional[str] = Field(default=None, sa_column=Column(Text))
-token_expira: Optional[datetime] = None  # None si es long-lived
-
-# En Pagina:
-token_pagina_cifrado: Optional[str] = Field(default=None, sa_column=Column(Text))
-token_expira: Optional[datetime] = None  # None para page tokens (no expiran)
+```env
+# Cifrado de credenciales y storage state
+CREDENTIAL_ENCRYPTION_KEY=clave_fernet_base64
 ```
 
----
+## 6. Ciclo de vida de las sesiones
 
-## 6. Ciclo de vida de los tokens
+### 6.1. Estados de una sesión
 
-### 6.1. Tipos de token
+| Estado | Descripción |
+|--------|-------------|
+| `inactivo` | Sesión guardada pero no en uso |
+| `activo` | Contexto de navegador activo con sesión válida |
+| `error` | Login falló o sesión expiró y no se pudo renovar |
+| `checkpoint` | Facebook pidió verificación de identidad |
 
-| Token | Duración | Renovación |
-|-------|----------|------------|
-| Short-lived user token | ~1 hora | Se descarta después de obtener el LLT |
-| Long-lived user token | ~60 días | Se renueva con el flujo de refresh |
-| Page access token | No expira (si se obtiene con LLT) | Se re-obtiene si se invalida |
+### 6.2. Validación de sesión
 
-### 6.2. Refresh automático
+Antes de ejecutar una acción, el Browser Manager:
+1. Carga el storage state.
+2. Crea un contexto con ese estado.
+3. Navega a `https://www.facebook.com/`.
+4. Verifica que el usuario sigue logueado (busca el avatar o el nombre en el header).
+5. Si está logueado → ejecuta la acción.
+6. Si no está logueado → intenta login con credenciales guardadas.
+7. Si el login falla → marca como `error` y notifica al admin.
 
-Un worker periódico (cron o tarea programada) debe:
+### 6.3. Renovación automática
 
-1. Listar cuentas con `token_expira` dentro de los próximos 7 días.
-2. Intentar renovar el long-lived token con el flujo `fb_exchange_token`.
-3. Si falla, marcar `estado_conexion = "error"` y `estado_autorizacion = "expirado"`.
-4. Notificar al admin (log + alerta en el panel).
+Un worker periódico:
+1. Lista sesiones con `ultima_actividad` mayor a 24 horas.
+2. Para cada una, valida la sesión (paso 6.2).
+3. Si es válida, actualiza `ultima_actividad`.
+4. Si expiró, intenta re-login con credenciales.
+5. Si falla, marca como `error`.
 
-### 6.3. Invalidación
+### 6.4. Detección de checkpoint
 
-Si un token se invalida (usuario revoca permisos, app desactivada, etc.):
-- Las llamadas a Graph API devuelven error 190 (Invalid OAuth access token).
-- El conector marca la Cuenta/Página como `estado_conexion = "error"`.
-- El sistema no reintenta automáticamente; espera intervención del admin.
-- Se registra el error en el log de actividad.
+Si durante el login o la navegación aparece un checkpoint:
+- El sistema toma un screenshot.
+- Marca la cuenta como `estado_conexion = "checkpoint"`.
+- Notifica al admin con el screenshot.
+- El admin resuelve manualmente (ingresa código, sube foto, etc.).
+- Una vez resuelto, el sistema guarda el nuevo storage state y marca como `conectado`.
 
----
-
-## 7. Conector de Facebook (adaptador)
+## 7. Conector de Facebook (browser-based)
 
 ### 7.1. Estructura
 
@@ -251,67 +236,102 @@ app/
 ├── connectors/
 │   └── facebook/
 │       ├── __init__.py
-│       ├── client.py       # Wrapper de Graph API
-│       ├── auth.py         # Flujo OAuth
-│       ├── publisher.py    # Publicar posts, comentarios, reacciones
-│       └── reader.py       # Leer posts, comentarios, métricas
+│       ├── browser_manager.py   # Gestión de contextos Playwright
+│       ├── login.py             # Login con credenciales
+│       ├── publisher.py        # Publicar posts, comentarios, reacciones
+│       ├── reader.py           # Leer posts, comentarios, métricas
+│       └── selectors.py        # Selectores CSS/XPath de la UI de Facebook
 ```
 
 ### 7.2. Interfaz del conector
 
 ```python
-class FacebookConnector:
-    def __init__(self, page_token: str):
-        self.token = page_token
-        self.base_url = "https://graph.facebook.com/v19.0"
+class FacebookBrowserConnector:
+    def __init__(self, session_state: dict):
+        self.state = session_state
 
-    async def publish_post(self, page_id: str, message: str, media: Optional[dict] = None) -> dict:
+    async def ensure_logged_in(self) -> bool:
+        """Verifica y renueva la sesión si es necesario."""
         ...
 
-    async def publish_comment(self, object_id: str, message: str) -> dict:
+    async def publish_post(self, page_id: str, message: str, media: Optional[bytes] = None) -> dict:
+        """Publica un post en la Página. Navega a la Página, hace clic en 'Crear publicación', escribe el mensaje, adjunta media si hay, y publica."""
         ...
 
-    async def react(self, object_id: str, reaction_type: str) -> dict:
+    async def publish_comment(self, post_url: str, message: str) -> dict:
+        """Navega al post, hace clic en 'Comentar', escribe y envía."""
         ...
 
-    async def get_page_posts(self, page_id: str, limit: int = 10) -> list[dict]:
+    async def react(self, object_url: str, reaction_type: str) -> dict:
+        """Navega al post/comentario y hace clic en la reacción correspondiente."""
         ...
 
-    async def get_post_comments(self, post_id: str, limit: int = 50) -> list[dict]:
+    async def get_page_posts(self, page_url: str, limit: int = 10) -> list[dict]:
+        """Navega a la Página, scroll para cargar posts, extrae texto, fecha, métricas."""
+        ...
+
+    async def get_post_comments(self, post_url: str, limit: int = 50) -> list[dict]:
+        """Navega al post, expande comentarios, extrae texto y autor."""
         ...
 ```
 
-### 7.3. Rate limits
+### 7.3. Selectores de Facebook
 
-Facebook Graph API tiene límites por app y por usuario. El conector debe:
-- Respetar los headers `X-App-Usage` y `X-Page-Usage`.
-- Implementar backoff exponencial.
-- Encolar acciones en la cola de tareas, no ejecutarlas sincrónicamente.
+Los selectores CSS/XPath de la UI de Facebook cambian frecuentemente. Se centralizan en `selectors.py` para facilitar mantenimiento:
 
----
+```python
+SELECTORS = {
+    "login_email": "input[name='email']",
+    "login_password": "input[name='pass']",
+    "login_button": "button[name='login']",
+    "create_post_button": "[aria-label='Crear una publicación']",
+    "post_textarea": "[contenteditable='true'][role='textbox']",
+    "publish_button": "[aria-label='Publicar']",
+    ...
+}
+```
+
+### 7.4. Rate limits (autoimpuestos)
+
+Como no hay API, los límites son autoimpuestos para evitar detección:
+- Máximo 5 publicaciones por hora por cuenta.
+- Máximo 20 comentarios por hora por cuenta.
+- Máximo 50 reacciones por hora por cuenta.
+- Delay aleatorio de 2-8 segundos entre acciones.
+- Pausa de 30-60 segundos cada 10 acciones.
 
 ## 8. Endpoints de backend necesarios
 
-### Autenticación Facebook
+### Cuentas y sesiones
 
 | Método | Ruta | Descripción |
 |--------|------|-------------|
-| GET | `/api/facebook/login` | Redirige a Facebook OAuth (query: `comunidad_id`) |
-| GET | `/api/facebook/callback` | Callback OAuth, procesa code y guarda tokens |
+| POST | `/api/facebook/cuentas` | Registrar nueva cuenta (email, password, totp_secret opcional) |
 | GET | `/api/facebook/cuentas` | Listar cuentas conectadas |
-| GET | `/api/facebook/cuentas/{id}/paginas` | Listar Páginas de una cuenta |
-| DELETE | `/api/facebook/cuentas/{id}` | Desconectar cuenta (revoca tokens) |
-| PATCH | `/api/facebook/paginas/{id}/asignar` | Asignar Página a un Personaje |
+| GET | `/api/facebook/cuentas/{id}` | Obtener detalle de cuenta |
+| DELETE | `/api/facebook/cuentas/{id}` | Desconectar cuenta (borra credenciales y sesiones) |
+| POST | `/api/facebook/cuentas/{id}/login` | Iniciar sesión en navegador (async) |
+| GET | `/api/facebook/cuentas/{id}/estado` | Estado de la sesión (conectado, checkpoint, error) |
+| GET | `/api/facebook/cuentas/{id}/paginas` | Listar Páginas detectadas en la cuenta |
 
-### Publicación (usado por el orquestador, no por el panel)
+### Páginas
 
 | Método | Ruta | Descripción |
 |--------|------|-------------|
-| POST | `/api/facebook/publicar` | Publicar post en una Página |
-| POST | `/api/facebook/comentar` | Comentar en un post |
-| POST | `/api/facebook/reaccionar` | Reaccionar a un post/comentario |
+| GET | `/api/facebook/paginas` | Listar todas las Páginas |
+| GET | `/api/facebook/paginas/{id}` | Obtener detalle |
+| PATCH | `/api/facebook/paginas/{id}/asignar` | Asignar Página a un Personaje |
+| PATCH | `/api/facebook/paginas/{id}/desasignar` | Desvincular Página de Personaje |
 
----
+### Acciones (usadas por el orquestador)
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| POST | `/api/facebook/publicar` | Publicar post (pagina_id, mensaje, media opcional) |
+| POST | `/api/facebook/comentar` | Comentar en un post (url, mensaje) |
+| POST | `/api/facebook/reaccionar` | Reaccionar (url, tipo) |
+| GET | `/api/facebook/leer-posts` | Leer posts de una Página (pagina_id, limit) |
+| GET | `/api/facebook/leer-comentarios` | Leer comentarios de un post (post_url, limit) |
 
 ## 9. Flujo completo de ejemplo
 
@@ -341,46 +361,45 @@ Facebook Graph API tiene límites por app y por usuario. El conector debe:
 ## 11. Variables de entorno necesarias
 
 ```env
-# Facebook App
-FACEBOOK_APP_ID=tu_app_id
-FACEBOOK_APP_SECRET=tu_app_secret
-FACEBOOK_REDIRECT_URI=http://localhost:8000/api/facebook/callback
+# Cifrado de credenciales y storage state
+CREDENTIAL_ENCRYPTION_KEY=clave_fernet_base64
 
-# Cifrado de tokens
-TOKEN_ENCRYPTION_KEY=clave_fernet_base64
+# Navegadores
+BROWSER_POOL_SIZE=5
+BROWSER_HEADLESS=true
+BROWSER_PROXY_URL=  # opcional, para rotación de IPs
+STORAGE_STATE_PATH=./data/browser_states/
 
 # Frontend
 FRONTEND_URL=http://localhost:3000
 ```
 
----
-
 ## 12. Próximos pasos
 
-1. Crear la Facebook App en Meta Developer Console.
-2. Agregar campos de token cifrado a los modelos `Cuenta` y `Pagina`.
-3. Implementar el flujo OAuth en FastAPI.
-4. Crear el conector de Facebook (client + publisher + reader).
-5. Agregar endpoints de autenticación y publicación.
-6. Actualizar el frontend (tab Comunidad) para mostrar Páginas conectadas y permitir asignación.
-7. Implementar refresh automático de tokens (worker).
-8. Tests con una Página de prueba.
-9. App Review para permisos de producción.
-
----
+1. Instalar Playwright en el entorno de ejecución (`pip install playwright && playwright install chromium`).
+2. Crear el modelo `SesionNavegador` en la base de datos (ya definido en `app/db/models.py`).
+3. Implementar el Browser Manager como servicio independiente (worker, no en FastAPI).
+4. Implementar login con credenciales en Playwright (incluyendo 2FA y checkpoints).
+5. Implementar el pool de workers con cola de tareas.
+6. Crear los endpoints de backend (cuentas, páginas, acciones).
+7. Actualizar el frontend (tab Comunidad) para registrar cuentas con credenciales y mostrar Páginas.
+8. Implementar selectores CSS de Facebook en `selectors.py`.
+9. Implementar publicación, comentarios y reacciones vía navegador.
+10. Implementar lectura de posts y comentarios vía scraping.
+11. Implementar refresh automático de sesiones.
+12. Tests con una cuenta de prueba.
 
 ## 13. Navegadores para manejo simultáneo de cuentas
 
 ### 13.1. Por qué se necesitan navegadores
 
-La Graph API de Facebook tiene limitaciones que no cubren todas las necesidades del sistema:
+**No se usa ninguna API de Facebook.** Toda la interacción se hace a través de un navegador real que se loguea con credenciales y opera la interfaz web.
 
-- **App Review**: permisos avanzados requieren aprobación de Meta (proceso largo).
-- **Rate limits**: límites por app y por usuario que dificultan operaciones masivas.
-- **Acciones no soportadas por API**: navegar feeds, unirse a grupos, interactuar en publicaciones de terceros, leer comentarios en tiempo real, scraping de tendencias.
-- **Detección de spam**: Facebook limita acciones automatizadas vía API más agresivamente que vía navegador.
-
-Los navegadores permiten operar como un usuario real, con las mismas capacidades de la interfaz web.
+Esto elimina la dependencia de:
+- Facebook App en Meta Developer Console.
+- App Review y permisos.
+- OAuth y tokens de acceso.
+- Rate limits de la Graph API.
 
 ### 13.2. Arquitectura de navegadores
 
@@ -407,45 +426,11 @@ Los navegadores permiten operar como un usuario real, con las mismas capacidades
 | Componente | Tecnología | Motivo |
 |------------|-----------|--------|
 | Motor de navegador | **Playwright** (Chromium) | Soporte multi-contexto, headless, estable, API moderna |
-| Alternativa | **Puppeteer** | Similar, pero Playwright tiene mejor soporte multi-browser |
-| Aislamiento | **Browser contexts** de Playwright | Cada contexto = sesión aislada (cookies, storage, cache) |
-| Persistencia de sesión | **Storage state** (cookies + localStorage) | Se guarda por cuenta y se restaura en cada ejecución |
+| Aislamiento | **Browser contexts** de Playwright | Cada contexto = sesión aislada |
+| Persistencia de sesión | **Storage state** (cookies + localStorage) | Se guarda por cuenta y se restaura |
 | Orquestación | **Worker pool** con cola de tareas | Cada tarea asigna un contexto libre |
 
-### 13.4. Conceptos clave
-
-**Browser Context (Contexto de navegador):**
-- Un contexto es una sesión aislada dentro de un mismo proceso de navegador.
-- Cada contexto tiene sus propias cookies, localStorage, sessionStorage y cache.
-- Es equivalente a un "perfil de usuario" de Chrome, pero sin overhead de múltiples procesos.
-- Playwright permite crear decenas de contextos en un solo navegador.
-
-**Storage State:**
-- Playwright puede exportar el estado de un contexto (cookies + localStorage) a un archivo JSON.
-- Este archivo se guarda por cuenta y se carga al iniciar una nueva sesión.
-- Evita tener que hacer login cada vez.
-
-**Worker Pool:**
-- Un pool de workers, cada uno con un contexto de navegador asignado.
-- Cuando se necesita ejecutar una acción (publicar, comentar, leer), se asigna un worker libre.
-- Si todos los workers están ocupados, la tarea se encola.
-
-### 13.5. Flujo de uso
-
-```
-1. Admin conecta una cuenta de Facebook (via OAuth o login manual).
-2. Se crea un Browser Context para esa cuenta.
-3. Se guarda el storage state (cookies) en disco/DB (cifrado).
-4. Cuando el orquestador necesita ejecutar una acción:
-   a. Se solicita un worker libre del pool.
-   b. Se carga el storage state de la cuenta correspondiente.
-   c. Se navega a la Página de Facebook.
-   d. Se ejecuta la acción (publicar, comentar, etc.).
-   e. Se actualiza el storage state (por si cambiaron cookies).
-   f. Se libera el worker.
-```
-
-### 13.6. Gestión de múltiples cuentas en simultáneo
+### 13.4. Gestión de múltiples cuentas en simultáneo
 
 **Concurrencia:**
 - Un solo proceso de Chromium puede manejar N contextos simultáneos.
@@ -455,74 +440,25 @@ Los navegadores permiten operar como un usuario real, con las mismas capacidades
 **Aislamiento:**
 - Cada contexto es completamente aislado.
 - No hay cross-contamination de cookies ni storage.
-- Cada cuenta opera de forma independiente.
 
 **Rotación de IPs (Fase 4+):**
 - Facebook detecta múltiples cuentas desde la misma IP.
 - Usar proxies (residenciales o datacenter) por contexto.
-- Playwright soporta proxy por contexto: `browser.new_context(proxy={server: "http://proxy:port"})`.
 
-### 13.7. Modelo de datos sugerido
+### 13.5. Consideraciones de seguridad
 
-```python
-class SesionNavegador(SQLModel, table=True):
-    __tablename__ = "sesiones_navegador"
-
-    id: str = Field(default_factory=generate_uuid, primary_key=True)
-    cuenta_id: str = Field(foreign_key="cuentas.id", index=True)
-    plataforma: Plataforma = Field(default=Plataforma.FACEBOOK)
-    # Storage state cifrado (cookies + localStorage)
-    storage_state_cifrado: Optional[str] = Field(default=None, sa_column=Column(Text))
-    # User agent usado para esta sesión
-    user_agent: Optional[str] = None
-    # Proxy asignado (opcional)
-    proxy: Optional[str] = None
-    # Estado
-    estado: str = Field(default="inactivo")  # inactivo | activo | error
-    ultima_actividad: Optional[datetime] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
-```
-
-### 13.8. Consideraciones de seguridad
-
-- **User agents realistas**: usar user agents de navegadores reales, rotarlos.
-- **Delays humanos**: agregar delays aleatorios entre acciones (1-5s).
-- **Límites de frecuencia**: máximo N publicaciones/comentarios por hora por cuenta.
-- **Detección de captcha**: si aparece un captcha, pausar la cuenta y notificar al admin.
-- **Sesiones persistentes**: guardar storage state cifrado, no passwords.
+- **Credenciales cifradas** con Fernet, nunca en texto plano.
+- **Delays humanos**: 2-8 segundos entre acciones.
+- **Límites de frecuencia**: máximo 5 posts/hora, 20 comentarios/hora, 50 reacciones/hora por cuenta.
+- **Detección de captcha/checkpoint**: pausar cuenta y notificar al admin.
+- **User agents realistas**: rotar para evitar detección.
 - **Aislamiento de procesos**: si una cuenta es baneada, no afecta a las demás.
 
-### 13.9. Integración con el orquestador
-
-El orquestador decide si usar Graph API o navegador según la acción:
-
-| Acción | Método preferido | Fallback |
-|--------|-----------------|----------|
-| Publicar post en Página propia | Graph API | Navegador |
-| Comentar en post propio | Graph API | Navegador |
-| Leer métricas de Página | Graph API | Navegador |
-| Comentar en post de tercero | Navegador | — |
-| Reaccionar a post de tercero | Navegador | — |
-| Navegar feed / grupos | Navegador | — |
-| Leer comentarios en tiempo real | Navegador | — |
-
-### 13.10. Próximos pasos
-
-1. Instalar Playwright en el entorno de ejecución.
-2. Crear el modelo `SesionNavegador` en la base de datos.
-3. Implementar el Browser Manager como servicio independiente (no en FastAPI, sino como worker).
-4. Implementar login manual asistido (el admin hace login en el navegador, se guarda el storage state).
-5. Implementar el pool de workers con cola de tareas.
-6. Integrar con el orquestador para decidir API vs navegador.
-7. Agregar métricas de uso (acciones por cuenta, rate limits, errores).
-
-### 13.11. Variables de entorno adicionales
+### 13.6. Variables de entorno adicionales
 
 ```env
-# Navegadores
 BROWSER_POOL_SIZE=5
 BROWSER_HEADLESS=true
-BROWSER_PROXY_URL=  # opcional, para rotación de IPs
+BROWSER_PROXY_URL=  # opcional
 STORAGE_STATE_PATH=./data/browser_states/
 ```
