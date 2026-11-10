@@ -366,3 +366,163 @@ FRONTEND_URL=http://localhost:3000
 7. Implementar refresh automático de tokens (worker).
 8. Tests con una Página de prueba.
 9. App Review para permisos de producción.
+
+---
+
+## 13. Navegadores para manejo simultáneo de cuentas
+
+### 13.1. Por qué se necesitan navegadores
+
+La Graph API de Facebook tiene limitaciones que no cubren todas las necesidades del sistema:
+
+- **App Review**: permisos avanzados requieren aprobación de Meta (proceso largo).
+- **Rate limits**: límites por app y por usuario que dificultan operaciones masivas.
+- **Acciones no soportadas por API**: navegar feeds, unirse a grupos, interactuar en publicaciones de terceros, leer comentarios en tiempo real, scraping de tendencias.
+- **Detección de spam**: Facebook limita acciones automatizadas vía API más agresivamente que vía navegador.
+
+Los navegadores permiten operar como un usuario real, con las mismas capacidades de la interfaz web.
+
+### 13.2. Arquitectura de navegadores
+
+```
+┌─────────────────────────────────────────────────────┐
+│  Browser Manager (servicio independiente)           │
+│                                                     │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐ │
+│  │  Contexto 1  │  │  Contexto 2  │  │  Contexto N  │ │
+│  │  (Cuenta A)  │  │  (Cuenta B)  │  │  (Cuenta N)  │ │
+│  │              │  │              │  │              │ │
+│  │  - Cookies   │  │  - Cookies   │  │  - Cookies   │ │
+│  │  - Storage   │  │  - Storage   │  │  - Storage   │ │
+│  │  - Session   │  │  - Session   │  │  - Session   │ │
+│  └─────────────┘  └─────────────┘  └─────────────┘  │
+│                                                     │
+│  Motor: Playwright (Chromium headless)              │
+│  Proxy: rotación de IPs (opcional, Fase 4+)         │
+└─────────────────────────────────────────────────────┘
+```
+
+### 13.3. Tecnología recomendada
+
+| Componente | Tecnología | Motivo |
+|------------|-----------|--------|
+| Motor de navegador | **Playwright** (Chromium) | Soporte multi-contexto, headless, estable, API moderna |
+| Alternativa | **Puppeteer** | Similar, pero Playwright tiene mejor soporte multi-browser |
+| Aislamiento | **Browser contexts** de Playwright | Cada contexto = sesión aislada (cookies, storage, cache) |
+| Persistencia de sesión | **Storage state** (cookies + localStorage) | Se guarda por cuenta y se restaura en cada ejecución |
+| Orquestación | **Worker pool** con cola de tareas | Cada tarea asigna un contexto libre |
+
+### 13.4. Conceptos clave
+
+**Browser Context (Contexto de navegador):**
+- Un contexto es una sesión aislada dentro de un mismo proceso de navegador.
+- Cada contexto tiene sus propias cookies, localStorage, sessionStorage y cache.
+- Es equivalente a un "perfil de usuario" de Chrome, pero sin overhead de múltiples procesos.
+- Playwright permite crear decenas de contextos en un solo navegador.
+
+**Storage State:**
+- Playwright puede exportar el estado de un contexto (cookies + localStorage) a un archivo JSON.
+- Este archivo se guarda por cuenta y se carga al iniciar una nueva sesión.
+- Evita tener que hacer login cada vez.
+
+**Worker Pool:**
+- Un pool de workers, cada uno con un contexto de navegador asignado.
+- Cuando se necesita ejecutar una acción (publicar, comentar, leer), se asigna un worker libre.
+- Si todos los workers están ocupados, la tarea se encola.
+
+### 13.5. Flujo de uso
+
+```
+1. Admin conecta una cuenta de Facebook (via OAuth o login manual).
+2. Se crea un Browser Context para esa cuenta.
+3. Se guarda el storage state (cookies) en disco/DB (cifrado).
+4. Cuando el orquestador necesita ejecutar una acción:
+   a. Se solicita un worker libre del pool.
+   b. Se carga el storage state de la cuenta correspondiente.
+   c. Se navega a la Página de Facebook.
+   d. Se ejecuta la acción (publicar, comentar, etc.).
+   e. Se actualiza el storage state (por si cambiaron cookies).
+   f. Se libera el worker.
+```
+
+### 13.6. Gestión de múltiples cuentas en simultáneo
+
+**Concurrencia:**
+- Un solo proceso de Chromium puede manejar N contextos simultáneos.
+- Límite práctico: ~10-20 contextos por instancia (depende de RAM).
+- Para más cuentas, se usan múltiples instancias de Chromium distribuidas.
+
+**Aislamiento:**
+- Cada contexto es completamente aislado.
+- No hay cross-contamination de cookies ni storage.
+- Cada cuenta opera de forma independiente.
+
+**Rotación de IPs (Fase 4+):**
+- Facebook detecta múltiples cuentas desde la misma IP.
+- Usar proxies (residenciales o datacenter) por contexto.
+- Playwright soporta proxy por contexto: `browser.new_context(proxy={server: "http://proxy:port"})`.
+
+### 13.7. Modelo de datos sugerido
+
+```python
+class SesionNavegador(SQLModel, table=True):
+    __tablename__ = "sesiones_navegador"
+
+    id: str = Field(default_factory=generate_uuid, primary_key=True)
+    cuenta_id: str = Field(foreign_key="cuentas.id", index=True)
+    plataforma: Plataforma = Field(default=Plataforma.FACEBOOK)
+    # Storage state cifrado (cookies + localStorage)
+    storage_state_cifrado: Optional[str] = Field(default=None, sa_column=Column(Text))
+    # User agent usado para esta sesión
+    user_agent: Optional[str] = None
+    # Proxy asignado (opcional)
+    proxy: Optional[str] = None
+    # Estado
+    estado: str = Field(default="inactivo")  # inactivo | activo | error
+    ultima_actividad: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+```
+
+### 13.8. Consideraciones de seguridad
+
+- **User agents realistas**: usar user agents de navegadores reales, rotarlos.
+- **Delays humanos**: agregar delays aleatorios entre acciones (1-5s).
+- **Límites de frecuencia**: máximo N publicaciones/comentarios por hora por cuenta.
+- **Detección de captcha**: si aparece un captcha, pausar la cuenta y notificar al admin.
+- **Sesiones persistentes**: guardar storage state cifrado, no passwords.
+- **Aislamiento de procesos**: si una cuenta es baneada, no afecta a las demás.
+
+### 13.9. Integración con el orquestador
+
+El orquestador decide si usar Graph API o navegador según la acción:
+
+| Acción | Método preferido | Fallback |
+|--------|-----------------|----------|
+| Publicar post en Página propia | Graph API | Navegador |
+| Comentar en post propio | Graph API | Navegador |
+| Leer métricas de Página | Graph API | Navegador |
+| Comentar en post de tercero | Navegador | — |
+| Reaccionar a post de tercero | Navegador | — |
+| Navegar feed / grupos | Navegador | — |
+| Leer comentarios en tiempo real | Navegador | — |
+
+### 13.10. Próximos pasos
+
+1. Instalar Playwright en el entorno de ejecución.
+2. Crear el modelo `SesionNavegador` en la base de datos.
+3. Implementar el Browser Manager como servicio independiente (no en FastAPI, sino como worker).
+4. Implementar login manual asistido (el admin hace login en el navegador, se guarda el storage state).
+5. Implementar el pool de workers con cola de tareas.
+6. Integrar con el orquestador para decidir API vs navegador.
+7. Agregar métricas de uso (acciones por cuenta, rate limits, errores).
+
+### 13.11. Variables de entorno adicionales
+
+```env
+# Navegadores
+BROWSER_POOL_SIZE=5
+BROWSER_HEADLESS=true
+BROWSER_PROXY_URL=  # opcional, para rotación de IPs
+STORAGE_STATE_PATH=./data/browser_states/
+```

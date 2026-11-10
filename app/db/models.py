@@ -145,6 +145,7 @@ class Cuenta(CuentaBase, table=True):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
     paginas: list["Pagina"] = Relationship(back_populates="cuenta")
+    sesiones_navegador: list["SesionNavegador"] = Relationship(back_populates="cuenta")
 
 
 class PaginaBase(SQLModel):
@@ -172,6 +173,31 @@ class Pagina(PaginaBase, table=True):
 
     personaje: Optional[Personaje] = Relationship(back_populates="pagina")
     cuenta: Optional["Cuenta"] = Relationship(back_populates="paginas")
+
+
+# ---------------------------------------------------------------------------
+# Sesión de navegador (para manejo de cuentas Facebook vía browser)
+# ---------------------------------------------------------------------------
+
+class SesionNavegadorBase(SQLModel):
+    plataforma: Plataforma = Field(default=Plataforma.FACEBOOK)
+    user_agent: Optional[str] = None
+    proxy: Optional[str] = None
+    estado: str = Field(default="inactivo")  # inactivo | activo | error
+    ultima_actividad: Optional[datetime] = None
+
+
+class SesionNavegador(SesionNavegadorBase, table=True):
+    __tablename__ = "sesiones_navegador"
+
+    id: str = Field(default_factory=generate_uuid, primary_key=True)
+    cuenta_id: str = Field(foreign_key="cuentas.id", index=True)
+    # Storage state cifrado (cookies + localStorage de Playwright)
+    storage_state_cifrado: Optional[str] = Field(default=None, sa_column=Column(Text))
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    cuenta: Optional["Cuenta"] = Relationship(back_populates="sesiones_navegador")
 
 
 # ---------------------------------------------------------------------------
