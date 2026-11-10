@@ -48,3 +48,6 @@ pulse_os.db
 # Browser states
 /data/browser_states/
 data/browser_states/
+
+# Alembic
+alembic/versions/__pycache__/
