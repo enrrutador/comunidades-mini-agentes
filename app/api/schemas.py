@@ -281,3 +281,22 @@ class TareaUpdate(BaseModel):
     error: Optional[str] = None
     fecha_ejecucion: Optional[datetime] = None
     modelo_usado: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# Personalidad
+# ---------------------------------------------------------------------------
+
+class GenerarContenidoRequest(BaseModel):
+    personaje_id: str
+    prompt: str = Field(..., min_length=1)
+    proveedor_id: Optional[str] = None
+    modelo_id: Optional[str] = None
+    temperature: float = Field(default=0.8, ge=0.0, le=2.0)
+    max_tokens: Optional[int] = Field(default=500, ge=1, le=4096)
+
+
+class GenerarContenidoResponse(BaseModel):
+    personaje_id: str
+    personaje_nombre: str
+    contenido: str
