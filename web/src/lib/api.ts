@@ -5,11 +5,18 @@
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
+function getAuthToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("pulse.auth.token");
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = getAuthToken();
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options?.headers,
     },
   });
@@ -390,4 +397,41 @@ export function buscarMemoria(q: string, scope?: string, comunidadId?: string) {
   if (scope) params.set("scope", scope);
   if (comunidadId) params.set("comunidad_id", comunidadId);
   return request<MemoryEntry[]>(`/memoria/buscar?${params}`);
+}
+
+
+// ---------------------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------------------
+
+export interface AuthUser {
+  id: string;
+  username: string;
+  email?: string | null;
+  is_active: boolean;
+  is_admin: boolean;
+}
+
+export async function loginAdmin(username: string, password: string): Promise<string> {
+  const res = await fetch(`${API_BASE}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ username, password }),
+  });
+  if (!res.ok) throw new Error("Login failed");
+  const data = await res.json();
+  localStorage.setItem("pulse.auth.token", data.access_token);
+  return data.access_token;
+}
+
+export function logoutAdmin() {
+  localStorage.removeItem("pulse.auth.token");
+}
+
+export function isAuthenticated(): boolean {
+  return !!getAuthToken();
+}
+
+export async function getMe(): Promise<AuthUser> {
+  return request<AuthUser>("/auth/me");
 }

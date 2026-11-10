@@ -13,7 +13,8 @@ import { BotConfigModal } from "@/components/BotCard";
 import { CharacterConfigModal } from "@/components/CharacterCard";
 import { useStored } from "@/lib/useStored";
 import { activeProvider, callLLM, llmConfigured } from "@/lib/llm";
-import { listComunidades, listPersonajes, createComunidad, createPersonaje, updatePersonaje } from "@/lib/api";
+import { listComunidades, listPersonajes, createComunidad, createPersonaje, updatePersonaje, loginAdmin, logoutAdmin, isAuthenticated, getMe } from "@/lib/api";
+import type { AuthUser } from "@/lib/api";
 import type { Comunidad as ApiComunidad, Personaje as ApiPersonaje } from "@/lib/api";
 import { timeNow, uid } from "@/lib/theme";
 import {
@@ -81,6 +82,11 @@ export default function PulseOS() {
   const [llmReply, setLlmReply] = useState("");
   const [llmError, setLlmError] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [loginOpen, setLoginOpen] = useState(false);
+  const [loginUser, setLoginUser] = useState("");
+  const [loginPass, setLoginPass] = useState("");
+  const [loginError, setLoginError] = useState("");
   const [botEditing, setBotEditing] = useState<Bot | null>(null);
   const [characterEditing, setCharacterEditing] = useState<Character | null>(
     null,
@@ -98,6 +104,9 @@ export default function PulseOS() {
     workspace;
 
   useEffect(() => {
+    if (isAuthenticated()) {
+      getMe().then(setAuthUser).catch(() => logoutAdmin());
+    }
     setMounted(true);
     return () => {
       tokenRef.current += 1;
@@ -495,6 +504,35 @@ export default function PulseOS() {
         onClose={() => setCharacterEditing(null)}
         onSave={saveCharacter}
       />
+
+      {loginOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-xl border border-[#23233a] bg-[#08080f] p-4">
+            <h3 className="text-sm font-semibold text-slate-100">Login admin</h3>
+            <div className="mt-3 space-y-3">
+              <input value={loginUser} onChange={(e) => setLoginUser(e.target.value)} placeholder="Usuario" className="input-neon text-[11px]" />
+              <input type="password" value={loginPass} onChange={(e) => setLoginPass(e.target.value)} placeholder="Contraseña" className="input-neon text-[11px]" />
+            </div>
+            {loginError ? <p className="mt-2 text-[10px] text-neon-red">{loginError}</p> : null}
+            <div className="mt-3 flex justify-end gap-2">
+              <button type="button" onClick={() => { setLoginOpen(false); setLoginError(""); }} className="btn-ghost">Cancelar</button>
+              <button type="button" disabled={!loginUser.trim() || !loginPass.trim()} onClick={async () => {
+                try {
+                  await loginAdmin(loginUser.trim(), loginPass);
+                  const user = await getMe();
+                  setAuthUser(user);
+                  setLoginOpen(false);
+                  setLoginUser("");
+                  setLoginPass("");
+                  setLoginError("");
+                } catch {
+                  setLoginError("Usuario o contraseña incorrectos");
+                }
+              }} className="btn-primary">Ingresar</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
