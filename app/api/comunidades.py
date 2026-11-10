@@ -52,8 +52,8 @@ def actualizar_comunidad(
     for key, value in data.items():
         setattr(comunidad, key, value)
 
-    from datetime import datetime
-    comunidad.updated_at = datetime.utcnow()
+    from datetime import datetime, timezone
+    comunidad.updated_at = datetime.now(timezone.utc)
     session.add(comunidad)
     session.commit()
     session.refresh(comunidad)

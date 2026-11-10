@@ -8,8 +8,8 @@ class Settings(BaseSettings):
     APP_ENV: str = "development"
     SECRET_KEY: str = "change-me"
 
-    # Database
-    DATABASE_URL: str = "postgresql://user:password@localhost:5432/comunidades_mini_agentes"
+    # Database (SQLite por defecto para desarrollo; PostgreSQL en producción)
+    DATABASE_URL: str = "sqlite:///./pulse_os.db"
 
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"

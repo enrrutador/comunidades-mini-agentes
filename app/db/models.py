@@ -8,7 +8,7 @@ Principios:
 - Separación clara: Cuenta / Página / Personaje / Comunidad.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
 from uuid import uuid4
@@ -65,8 +65,8 @@ class Comunidad(ComunidadBase, table=True):
     __tablename__ = "comunidades"
 
     id: str = Field(default_factory=generate_uuid, primary_key=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     personajes: list["Personaje"] = Relationship(back_populates="comunidad")
 
@@ -112,8 +112,8 @@ class Personaje(PersonajeBase, table=True):
     # Personalidad como JSON para flexibilidad (editable sin migraciones frecuentes)
     personalidad: Optional[dict] = Field(default=None, sa_column=Column(JSON))
 
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     comunidad: Optional[Comunidad] = Relationship(back_populates="personajes")
     pagina: Optional["Pagina"] = Relationship(back_populates="personaje")
@@ -141,8 +141,8 @@ class Cuenta(CuentaBase, table=True):
     token_usuario_expira: Optional[datetime] = None
     # Credenciales / tokens se almacenan de forma segura (nunca en conversaciones del LLM)
     # Se recomienda tabla separada o secret manager en producción.
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     paginas: list["Pagina"] = Relationship(back_populates="cuenta")
     sesiones_navegador: list["SesionNavegador"] = Relationship(back_populates="cuenta")
@@ -168,8 +168,8 @@ class Pagina(PaginaBase, table=True):
     token_pagina_cifrado: Optional[str] = Field(default=None, sa_column=Column(Text))
     token_pagina_expira: Optional[datetime] = None
     # Un personaje puede estar asociado a una Página (relación 1:1 o 1:N según evolución)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     personaje: Optional[Personaje] = Relationship(back_populates="pagina")
     cuenta: Optional["Cuenta"] = Relationship(back_populates="paginas")
@@ -194,8 +194,8 @@ class SesionNavegador(SesionNavegadorBase, table=True):
     cuenta_id: str = Field(foreign_key="cuentas.id", index=True)
     # Storage state cifrado (cookies + localStorage de Playwright)
     storage_state_cifrado: Optional[str] = Field(default=None, sa_column=Column(Text))
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     cuenta: Optional["Cuenta"] = Relationship(back_populates="sesiones_navegador")
 
@@ -217,8 +217,8 @@ class ProveedorLLM(ProveedorLLMBase, table=True):
 
     id: str = Field(default_factory=generate_uuid, primary_key=True)
     # API keys se manejan por env o secret store, no necesariamente aquí
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     modelos: list["ModeloLLM"] = Relationship(back_populates="proveedor")
 
@@ -241,8 +241,8 @@ class ModeloLLM(ModeloLLMBase, table=True):
 
     id: str = Field(default_factory=generate_uuid, primary_key=True)
     proveedor_id: str = Field(foreign_key="proveedores_llm.id", index=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     proveedor: Optional[ProveedorLLM] = Relationship(back_populates="modelos")
 
@@ -270,5 +270,5 @@ class Tarea(TareaBase, table=True):
     comunidad_id: Optional[str] = Field(default=None, foreign_key="comunidades.id", index=True)
     personaje_id: Optional[str] = Field(default=None, foreign_key="personajes.id", index=True)
     modelo_usado: Optional[str] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

@@ -68,8 +68,8 @@ def actualizar_personaje(
     for key, value in data.items():
         setattr(personaje, key, value)
 
-    from datetime import datetime
-    personaje.updated_at = datetime.utcnow()
+    from datetime import datetime, timezone
+    personaje.updated_at = datetime.now(timezone.utc)
     session.add(personaje)
     session.commit()
     session.refresh(personaje)
