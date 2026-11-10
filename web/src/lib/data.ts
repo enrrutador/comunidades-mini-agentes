@@ -111,13 +111,13 @@ export const INITIAL_MEMORY: MemoryEntry[] = [
 ];
 
 export const INITIAL_RUNS: RunRecord[] = [
-  { id: "seed-1", prompt: "Prepará mi semana y dejá la bandeja en cero", model: "gpt-4o-mini", status: "complete", units: 15, verified: 14, rejected: 1, startedAt: new Date(Date.now() - 1000 * 60 * 42).toISOString(), durationMs: 18400, logs: [] },
-  { id: "seed-2", prompt: "Revisá el calendario y proponé contenido para la comunidad", model: "gpt-4o-mini", status: "complete", units: 12, verified: 12, rejected: 0, startedAt: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(), durationMs: 12100, logs: [] },
-  { id: "seed-3", prompt: "Conciliá los gastos de la semana", model: "gpt-4o-mini", status: "error", units: 6, verified: 4, rejected: 2, startedAt: new Date(Date.now() - 1000 * 60 * 60 * 26).toISOString(), durationMs: 8600, logs: [] },
+  { id: "seed-1", prompt: "Prepará mi semana y dejá la bandeja en cero", model: "gpt-4o-mini", status: "complete", units: 15, verified: 14, rejected: 1, startedAt: new Date(1731234567890 - 1000 * 60 * 42).toISOString(), durationMs: 18400, logs: [] },
+  { id: "seed-2", prompt: "Revisá el calendario y proponé contenido para la comunidad", model: "gpt-4o-mini", status: "complete", units: 12, verified: 12, rejected: 0, startedAt: new Date(1731234567890 - 1000 * 60 * 60 * 5).toISOString(), durationMs: 12100, logs: [] },
+  { id: "seed-3", prompt: "Conciliá los gastos de la semana", model: "gpt-4o-mini", status: "error", units: 6, verified: 4, rejected: 2, startedAt: new Date(1731234567890 - 1000 * 60 * 60 * 26).toISOString(), durationMs: 8600, logs: [] },
 ];
 
 export function initialLogs(): LogEntry[] {
-  const now = Date.now();
+  const now = 1731234567890;
   const stamp = (offset: number) =>
     new Date(now - offset).toLocaleTimeString("es-AR", {
       hour12: false,
