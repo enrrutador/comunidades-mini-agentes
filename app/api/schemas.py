@@ -237,3 +237,47 @@ class MemoryUpdate(BaseModel):
     owner: Optional[str] = Field(None, min_length=1, max_length=120)
     summary: Optional[str] = Field(None, min_length=1)
     metadata_json: Optional[dict] = None
+
+
+# ---------------------------------------------------------------------------
+# Tareas
+# ---------------------------------------------------------------------------
+
+class TareaCreate(BaseModel):
+    tipo: str = Field(..., min_length=1, max_length=80)
+    prioridad: int = Field(default=5, ge=1, le=10)
+    payload: Optional[dict] = None
+    fecha_programada: Optional[datetime] = None
+    idempotency_key: Optional[str] = None
+    comunidad_id: Optional[str] = None
+    personaje_id: Optional[str] = None
+    modelo_usado: Optional[str] = None
+
+
+class TareaRead(BaseModel):
+    id: str
+    tipo: str
+    prioridad: int
+    estado: str
+    payload: Optional[dict] = None
+    resultado: Optional[dict] = None
+    error: Optional[str] = None
+    fecha_programada: Optional[datetime] = None
+    fecha_ejecucion: Optional[datetime] = None
+    idempotency_key: Optional[str] = None
+    comunidad_id: Optional[str] = None
+    personaje_id: Optional[str] = None
+    modelo_usado: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class TareaUpdate(BaseModel):
+    estado: Optional[str] = None
+    resultado: Optional[dict] = None
+    error: Optional[str] = None
+    fecha_ejecucion: Optional[datetime] = None
+    modelo_usado: Optional[str] = None
