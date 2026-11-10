@@ -76,7 +76,7 @@ class ReaccionarRequest(BaseModel):
 # Gestión de cuentas
 # ---------------------------------------------------------------------------
 
-@router.post("/cuentas", response_model=CuentaResponse)
+@router.post("/cuentas", response_model=CuentaResponse, status_code=201)
 def registrar_cuenta(
     data: CuentaCreate,
     session: Session = Depends(get_session),

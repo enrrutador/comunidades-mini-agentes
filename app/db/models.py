@@ -276,6 +276,27 @@ class MemoryEntry(MemoryEntryBase, table=True):
 
 
 # ---------------------------------------------------------------------------
+# Usuario (autenticación del panel)
+# ---------------------------------------------------------------------------
+
+class UsuarioBase(SQLModel):
+    username: str = Field(index=True, unique=True)
+    email: Optional[str] = None
+    is_active: bool = Field(default=True)
+    is_admin: bool = Field(default=False)
+
+
+class Usuario(UsuarioBase, table=True):
+    __tablename__ = "usuarios"
+
+    id: str = Field(default_factory=generate_uuid, primary_key=True)
+    # Password hasheado (bcrypt). Nunca en texto plano.
+    password_hash: str = Field(sa_column=Column(Text))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+# ---------------------------------------------------------------------------
 # Tareas (orquestación)
 # ---------------------------------------------------------------------------
 

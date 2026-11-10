@@ -29,6 +29,22 @@ def listar_memoria(
     return session.exec(query.order_by(MemoryEntry.created_at.desc())).all()
 
 
+@router.get("/buscar", response_model=List[MemoryRead])
+def buscar_memoria(
+    q: str = Query(..., min_length=1),
+    scope: Optional[str] = None,
+    comunidad_id: Optional[str] = None,
+    session: Session = Depends(get_session),
+):
+    """Buscar memorias por texto en el resumen."""
+    query = select(MemoryEntry).where(MemoryEntry.summary.contains(q))
+    if scope:
+        query = query.where(MemoryEntry.scope == scope)
+    if comunidad_id:
+        query = query.where(MemoryEntry.comunidad_id == comunidad_id)
+    return session.exec(query.order_by(MemoryEntry.created_at.desc())).all()
+
+
 @router.post("", response_model=MemoryRead, status_code=201)
 def crear_memoria(payload: MemoryCreate, session: Session = Depends(get_session)):
     entry = MemoryEntry(**payload.model_dump())
