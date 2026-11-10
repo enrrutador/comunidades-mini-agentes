@@ -351,7 +351,45 @@ export interface MemoryEntry {
   scope: string;
   owner: string;
   summary: string;
-  time: string;
+  metadata_json?: Record<string, unknown> | null;
+  comunidad_id?: string | null;
+  personaje_id?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export function listMemoria(scope?: string, comunidadId?: string, personajeId?: string) {
+  const params = new URLSearchParams();
+  if (scope) params.set("scope", scope);
+  if (comunidadId) params.set("comunidad_id", comunidadId);
+  if (personajeId) params.set("personaje_id", personajeId);
+  const q = params.toString() ? `?${params}` : "";
+  return request<MemoryEntry[]>(`/memoria${q}`);
+}
+
+export function createMemoria(data: {
+  scope?: string;
+  owner: string;
+  summary: string;
+  metadata_json?: Record<string, unknown>;
+  comunidad_id?: string;
+  personaje_id?: string;
+}) {
+  return request<MemoryEntry>("/memoria", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function deleteMemoria(id: string) {
+  return request<void>(`/memoria/${id}`, { method: "DELETE" });
+}
+
+export function buscarMemoria(q: string, scope?: string, comunidadId?: string) {
+  const params = new URLSearchParams({ q });
+  if (scope) params.set("scope", scope);
+  if (comunidadId) params.set("comunidad_id", comunidadId);
+  return request<MemoryEntry[]>(`/memoria/buscar?${params}`);
 }
 EOF
 echo "done"

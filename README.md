@@ -119,6 +119,7 @@ El documento completo de arquitectura está en [`docs/DOCUMENTO_MAESTRO.md`](doc
 ---
 
 **Estado actual (10 nov 2026):**  
-- Backend: modelos + CRUD de Comunidades y Personajes + init_db  
-- Frontend: Pulse OS con 6 tabs, composer LLM, configuración multiproveedor y runs simuladas; cliente API listo para conectar datos reales  
-- Documentación: Documento Maestro + FRONTEND.md + BACKEND.md
+- Backend: modelos completos + CRUD (Comunidades, Personajes, Proveedores LLM, Modelos LLM, Memoria, Tareas) + LLM multiproveedor real + Facebook browser-based (router) + SQLite dev  
+- Frontend: Pulse OS con 6 tabs, composer LLM, configuración multiproveedor y runs simuladas; cliente API completo; registro de cuentas Facebook desde el panel  
+- Servicios: Browser Manager (Playwright) para manejo simultáneo de cuentas Facebook  
+- Documentación: Documento Maestro + FRONTEND.md + BACKEND.md + FACEBOOK.md
