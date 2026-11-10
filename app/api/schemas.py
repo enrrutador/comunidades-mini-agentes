@@ -202,3 +202,38 @@ class LLMTestResponse(BaseModel):
     ok: bool
     modelos_disponibles: list[str] = []
     error: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# Memoria
+# ---------------------------------------------------------------------------
+
+class MemoryCreate(BaseModel):
+    scope: str = Field(default="individual")
+    owner: str = Field(..., min_length=1, max_length=120)
+    summary: str = Field(..., min_length=1)
+    metadata_json: Optional[dict] = None
+    comunidad_id: Optional[str] = None
+    personaje_id: Optional[str] = None
+
+
+class MemoryRead(BaseModel):
+    id: str
+    scope: str
+    owner: str
+    summary: str
+    metadata_json: Optional[dict] = None
+    comunidad_id: Optional[str] = None
+    personaje_id: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class MemoryUpdate(BaseModel):
+    scope: Optional[str] = None
+    owner: Optional[str] = Field(None, min_length=1, max_length=120)
+    summary: Optional[str] = Field(None, min_length=1)
+    metadata_json: Optional[dict] = None

@@ -248,6 +248,34 @@ class ModeloLLM(ModeloLLMBase, table=True):
 
 
 # ---------------------------------------------------------------------------
+# Memoria
+# ---------------------------------------------------------------------------
+
+class MemoryScope(str, Enum):
+    INDIVIDUAL = "individual"
+    COLECTIVA = "colectiva"
+    EPISODICA = "episódica"
+    SEMANTICA = "semántica"
+
+
+class MemoryEntryBase(SQLModel):
+    scope: MemoryScope = Field(default=MemoryScope.INDIVIDUAL)
+    owner: str = Field(index=True)
+    summary: str = Field(sa_column=Column(Text))
+    metadata_json: Optional[dict] = Field(default=None, sa_column=Column(JSON))
+
+
+class MemoryEntry(MemoryEntryBase, table=True):
+    __tablename__ = "memoria"
+
+    id: str = Field(default_factory=generate_uuid, primary_key=True)
+    comunidad_id: Optional[str] = Field(default=None, foreign_key="comunidades.id", index=True)
+    personaje_id: Optional[str] = Field(default=None, foreign_key="personajes.id", index=True)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+# ---------------------------------------------------------------------------
 # Tareas (orquestación)
 # ---------------------------------------------------------------------------
 
