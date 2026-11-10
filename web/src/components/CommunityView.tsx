@@ -14,6 +14,7 @@ import {
 } from "./CharacterCard";
 import { StatusDot } from "./ui";
 import { glow, text, uid } from "@/lib/theme";
+import { createCuentaFB } from "@/lib/api";
 import type { Character, Community, SocialAccount } from "@/lib/types";
 
 function plural(count: number, one: string, many: string) {
@@ -38,6 +39,11 @@ export function CommunityView({
   onToggleAccount: (id: string) => void;
 }) {
   const [editing, setEditing] = useState<Character | null>(null);
+  const [accountForm, setAccountForm] = useState(false);
+  const [accountName, setAccountName] = useState("");
+  const [accountEmail, setAccountEmail] = useState("");
+  const [accountPass, setAccountPass] = useState("");
+  const [accountMsg, setAccountMsg] = useState("");
 
   const community = communities.find((item) => item.id === workspaceId);
   const isSystem = workspaceId === "pulse-os";
@@ -139,11 +145,20 @@ export function CommunityView({
           </div>
 
           <div className="mt-6">
-            <div className="mb-2 flex items-center gap-2">
-              <Facebook size={13} className="text-neon-blue" />
-              <h2 className="text-xs font-medium text-slate-200">
-                Cuentas conectadas
-              </h2>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Facebook size={13} className="text-neon-blue" />
+                <h2 className="text-xs font-medium text-slate-200">
+                  Cuentas conectadas
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAccountForm(true)}
+                className="btn-ghost inline-flex items-center gap-1 text-[9px]"
+              >
+                <Plus size={10} /> Agregar cuenta
+              </button>
             </div>
             <div className="space-y-2">
               {accounts.map((item) => (
@@ -237,6 +252,80 @@ export function CommunityView({
           ) : null}
         </>
       )}
+
+      {accountForm ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-xl border border-[#23233a] bg-[#08080f] p-4">
+            <h3 className="text-sm font-semibold text-slate-100">
+              Agregar cuenta de Facebook
+            </h3>
+            <p className="mt-0.5 text-[10px] text-slate-500">
+              Las credenciales se envían al backend y se almacenan cifradas.
+            </p>
+            <div className="mt-3 space-y-3">
+              <input
+                value={accountName}
+                onChange={(e) => setAccountName(e.target.value)}
+                placeholder="Nombre identificador"
+                className="input-neon text-[11px]"
+              />
+              <input
+                value={accountEmail}
+                onChange={(e) => setAccountEmail(e.target.value)}
+                placeholder="Email o usuario de Facebook"
+                className="input-neon text-[11px]"
+              />
+              <input
+                type="password"
+                value={accountPass}
+                onChange={(e) => setAccountPass(e.target.value)}
+                placeholder="Contraseña"
+                className="input-neon text-[11px]"
+              />
+            </div>
+            {accountMsg ? (
+              <p className="mt-2 text-[10px] text-neon-cyan">{accountMsg}</p>
+            ) : null}
+            <div className="mt-3 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setAccountForm(false);
+                  setAccountName("");
+                  setAccountEmail("");
+                  setAccountPass("");
+                  setAccountMsg("");
+                }}
+                className="btn-ghost"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={!accountName.trim() || !accountEmail.trim() || !accountPass.trim()}
+                onClick={async () => {
+                  try {
+                    await createCuentaFB({
+                      nombre_identificador: accountName.trim(),
+                      email_o_usuario: accountEmail.trim(),
+                      password: accountPass,
+                    });
+                    setAccountMsg("Cuenta registrada. Iniciá sesión para conectar.");
+                    setAccountName("");
+                    setAccountEmail("");
+                    setAccountPass("");
+                  } catch (e) {
+                    setAccountMsg("Error al registrar la cuenta.");
+                  }
+                }}
+                className="btn-primary"
+              >
+                Registrar
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <CharacterConfigModal
         key={editing?.id ?? "character-closed"}

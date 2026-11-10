@@ -40,3 +40,11 @@ web/out/
 web/.env*.local
 web/package-lock.json
 web/tsconfig.tsbuildinfo
+
+# SQLite dev DB
+pulse_os.db
+*.db
+
+# Browser states
+/data/browser_states/
+data/browser_states/
