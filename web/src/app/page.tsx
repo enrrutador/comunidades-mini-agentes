@@ -42,20 +42,6 @@ import type {
   Unit,
 } from "@/lib/types";
 
-const DEMO_CONTENT: string[] = [
-  "Hoy hicimos una limpieza del refugio y los chicos respondieron genial 🐾",
-  "Tip del día: revisá las orejas de tu gato una vez por semana, evita infecciones.",
-  "Se busca hogar para Simona, 2 años, super cariñosa. Compartan!",
-  "Les dejamos el calendario de vacunación gratuito para este mes.",
-  "Gracias a todos los que donaron alimento, llegamos a la meta del mes 🙌",
-];
-
-function demoUnitContent(persona: Character | undefined, label: string): string {
-  const base = DEMO_CONTENT[Math.floor(Math.random() * DEMO_CONTENT.length)];
-  if (persona) return `${base} — ${persona.name}`;
-  return `${base} (${label})`;
-}
-
 function unitSystem(bot: Bot, persona: Character | undefined): string {
   const lines = [
     `Sos ${bot.name}, un bot del mesh de Pulse OS.`,
@@ -325,7 +311,7 @@ export default function PulseOS() {
     ): Promise<{ ok: boolean; content: string; error?: string }> {
       await new Promise((resolve) => setTimeout(resolve, 350 + Math.random() * 400));
       if (!configured) {
-        return { ok: true, content: demoUnitContent(persona, label) };
+        return { ok: false, content: "", error: "Sin proveedor LLM configurado: cargá uno en Ajustes para ejecutar de verdad." };
       }
       try {
         const content = await callLLM(

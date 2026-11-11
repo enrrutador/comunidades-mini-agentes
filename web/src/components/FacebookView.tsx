@@ -715,7 +715,7 @@ export function FacebookView({ characters }: { characters: Character[] }) {
             <span>{pages.length || "demo"}</span>
           </div>
           <div className="no-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-            {(pages.length > 0 ? pages : DEMO_PAGES).map((page, index) => {
+            {pages.map((page, index) => {
               const assigned = perfiles.find((perfil) => perfil.id === page.personaje_id);
               const isDemo = demoMode;
               const pageKey = page.id ?? `demo-${index}`;
@@ -883,25 +883,4 @@ export function FacebookView({ characters }: { characters: Character[] }) {
   );
 }
 
-const DEMO_PAGES: PaginaFB[] = [
-  {
-    id: "demo-page-1",
-    id_plataforma: "vida-gatuna",
-    nombre_publico: "Vida Gatuna",
-    url: null,
-    avatar_url: null,
-    estado_conexion: "demo",
-    capacidades: null,
-    personaje_id: null,
-  },
-  {
-    id: "demo-page-2",
-    id_plataforma: "patitas-zona-norte",
-    nombre_publico: "Patitas Zona Norte",
-    url: null,
-    avatar_url: null,
-    estado_conexion: "demo",
-    capacidades: null,
-    personaje_id: null,
-  },
-];
+
