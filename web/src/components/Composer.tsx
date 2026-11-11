@@ -31,7 +31,6 @@ export function Composer({
   onOpenSettings: () => void;
 }) {
   const [value, setValue] = useState("");
-  const [customMode, setCustomMode] = useState(false);
 
   function submit() {
     const prompt = value.trim();
@@ -86,61 +85,40 @@ export function Composer({
               <span className="max-w-[90px] truncate">{providerName}</span>
             </button>
             <span className="h-2 w-px bg-white/10" />
-            {customMode ? (
-              <input
-                autoFocus
-                value={model}
-                onChange={(event) => onSetModel(event.target.value)}
-                onBlur={() => setCustomMode(false)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === "Escape") {
-                    event.preventDefault();
-                    setCustomMode(false);
-                  }
+            <div className="relative shrink-0">
+              <select
+                value={model && !models.includes(model) ? "__custom" : model}
+                onChange={(event) => {
+                  const selected = event.target.value;
+                  if (selected !== "__custom") onSetModel(selected);
                 }}
-                placeholder="nombre del modelo…"
-                aria-label="Modelo del LLM (texto libre)"
-                className="w-[130px] shrink-0 rounded bg-white/5 px-1 py-0.5 font-mono text-[9px] text-slate-200 outline-none sm:w-[190px]"
+                aria-label="Modelo del LLM"
+                className={`max-w-[130px] appearance-none truncate rounded bg-transparent py-0.5 pl-1 pr-4 font-mono text-[9px] outline-none transition hover:bg-white/5 sm:max-w-[190px] ${
+                  model ? "text-slate-300" : "text-slate-500"
+                }`}
+              >
+                {models.length === 0 ? (
+                  <option value="">⚙ pegá la key para ver modelos</option>
+                ) : null}
+                {!model && models.length > 0 ? (
+                  <option value="" disabled>
+                    elegí un modelo…
+                  </option>
+                ) : null}
+                {model && !models.includes(model) ? (
+                  <option value="__custom">{model}</option>
+                ) : null}
+                {models.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                size={9}
+                className="pointer-events-none absolute right-0.5 top-1/2 -translate-y-1/2 text-slate-500"
               />
-            ) : (
-              <div className="relative shrink-0">
-                <select
-                  value={model && !models.includes(model) ? "__custom" : model}
-                  onChange={(event) => {
-                    const selected = event.target.value;
-                    if (selected === "__otro__") {
-                      setCustomMode(true);
-                      onSetModel("");
-                    } else if (selected !== "__custom") {
-                      onSetModel(selected);
-                    }
-                  }}
-                  aria-label="Modelo del LLM"
-                  className={`max-w-[130px] appearance-none truncate rounded bg-transparent py-0.5 pl-1 pr-4 font-mono text-[9px] outline-none transition hover:bg-white/5 sm:max-w-[190px] ${
-                    model ? "text-slate-300" : "text-slate-500"
-                  }`}
-                >
-                  {!model ? (
-                    <option value="" disabled>
-                      modelo…
-                    </option>
-                  ) : null}
-                  {model && !models.includes(model) ? (
-                    <option value="__custom">{model}</option>
-                  ) : null}
-                  {models.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                  <option value="__otro__">otro…</option>
-                </select>
-                <ChevronDown
-                  size={9}
-                  className="pointer-events-none absolute right-0.5 top-1/2 -translate-y-1/2 text-slate-500"
-                />
-              </div>
-            )}
+            </div>
             <span
               className={`rounded px-1 py-0.5 font-mono text-[8px] ${
                 configured

@@ -46,6 +46,64 @@ export function SettingsModal({
     draft.providers.find((provider) => provider.id === draft.activeProviderId) ??
     draft.providers[0];
 
+  // Carga automática de modelos cuando hay Base URL + API key
+  const selId = selected?.id;
+  const selKey = selected?.apiKey ?? "";
+  const selUrl = selected?.baseUrl ?? "";
+  const selModelCount = selected?.models?.length ?? 0;
+  useEffect(() => {
+    if (!open || !selId) return;
+    if (!selKey.trim() || !selUrl.trim() || selModelCount > 0) return;
+    const timer = setTimeout(async () => {
+      const provider = draft.providers.find((item) => item.id === selId);
+      if (!provider) return;
+      setTestingId(selId);
+      try {
+        const result = await testProvider(provider);
+        setDraft((current) => ({
+          ...current,
+          providers: current.providers.map((item) =>
+            item.id === selId
+              ? {
+                  ...item,
+                  models: result.models,
+                  model:
+                    item.model && result.models.includes(item.model)
+                      ? item.model
+                      : result.models[0] ?? item.model,
+                  status: "ok",
+                  lastTest: new Date().toISOString(),
+                }
+              : item,
+          ),
+        }));
+        setTestMsg((current) => ({
+          ...current,
+          [selId]: {
+            ok: true,
+            message:
+              result.models.length > 0
+                ? `Conexión OK · ${result.models.length} modelos cargados`
+                : "Conexión OK · el proveedor no listó modelos",
+          },
+        }));
+      } catch (error) {
+        setTestMsg((current) => ({
+          ...current,
+          [selId]: {
+            ok: false,
+            message: error instanceof Error ? error.message : "Error de conexión",
+          },
+        }));
+      } finally {
+        setTestingId(null);
+      }
+    }, 700);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, selId, selKey, selUrl, selModelCount]);
+
+
   function updateSettings<K extends keyof Settings>(key: K, value: Settings[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
   }

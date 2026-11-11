@@ -12,7 +12,7 @@ import { SettingsModal } from "@/components/SettingsModal";
 import { BotConfigModal, unitCode } from "@/components/BotCard";
 import { CharacterConfigModal } from "@/components/CharacterCard";
 import { useStored } from "@/lib/useStored";
-import { activeProvider, callLLM, llmConfigured } from "@/lib/llm";
+import { activeProvider, callLLM, llmConfigured, testProvider } from "@/lib/llm";
 import { listPersonajes, createPersonaje, updatePersonaje, loginAdmin, logoutAdmin, isAuthenticated, getMe } from "@/lib/api";
 import type { AuthUser } from "@/lib/api";
 import type { Comunidad as ApiComunidad, Personaje as ApiPersonaje } from "@/lib/api";
@@ -448,6 +448,55 @@ export default function PulseOS() {
     setSettings(next);
     addLog("config", "configuración multiproveedor guardada", "green");
   }
+
+  // Cargar modelos del proveedor activo al montar si no hay lista
+  useEffect(() => {
+    if (!mounted) return;
+    const active = activeProvider(settings);
+    if (!active || !active.apiKey.trim() || !active.baseUrl.trim()) return;
+    const models = active.models ?? [];
+    if (models.length > 0) {
+      if (!active.model || !models.includes(active.model)) {
+        setModel(models[0]);
+      }
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const result = await testProvider(active);
+        if (cancelled) return;
+        setSettings((current) => ({
+          ...current,
+          providers: current.providers.map((item) =>
+            item.id === active.id
+              ? {
+                  ...item,
+                  models: result.models,
+                  model:
+                    item.model && result.models.includes(item.model)
+                      ? item.model
+                      : result.models[0] ?? item.model,
+                  status: "ok",
+                }
+              : item,
+          ),
+        }));
+        addLog(
+          "config",
+          `modelos cargados · ${result.models.length} disponibles`,
+          "cyan",
+        );
+      } catch {
+        // sin lista: el error se verá al ejecutar
+      }
+    }, 1200);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, settings.providers, settings.activeProviderId]);
 
   function setModel(model: string) {
     setSettings((current) => ({

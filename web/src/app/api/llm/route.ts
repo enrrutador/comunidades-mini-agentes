@@ -74,7 +74,7 @@ export async function POST(request: Request) {
         models = (data.data ?? [])
           .map((model) => model.id)
           .filter((id): id is string => Boolean(id))
-          .slice(0, 6);
+          .slice(0, 120);
       } catch {
         // algunos proveedores no devuelven JSON en /models
       }
