@@ -84,5 +84,3 @@ def get_browser_manager(pool_size: int = 5, headless: bool = True) -> BrowserMan
     if _browser_manager is None:
         _browser_manager = BrowserManager(pool_size=pool_size, headless=headless)
     return _browser_manager
-EOF
-echo "written"

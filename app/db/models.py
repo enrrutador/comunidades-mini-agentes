@@ -136,6 +136,12 @@ class Cuenta(CuentaBase, table=True):
     __tablename__ = "cuentas"
 
     id: str = Field(default_factory=generate_uuid, primary_key=True)
+    # Credenciales cifradas con Fernet. Nunca en texto plano.
+    email_usuario: Optional[str] = None
+    password_cifrado: Optional[str] = Field(default=None, sa_column=Column(Text))
+    totp_secret_cifrado: Optional[str] = Field(default=None, sa_column=Column(Text))
+    # Storage state de Playwright (cookies + localStorage) tras login exitoso.
+    storage_state_cifrado: Optional[str] = Field(default=None, sa_column=Column(Text))
     # Token de usuario cifrado (Fernet). Nunca en texto plano.
     token_usuario_cifrado: Optional[str] = Field(default=None, sa_column=Column(Text))
     token_usuario_expira: Optional[datetime] = None

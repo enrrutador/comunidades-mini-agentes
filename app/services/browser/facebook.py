@@ -79,8 +79,8 @@ class FacebookBrowserConnector:
             await self._page.goto("https://www.facebook.com/", wait_until="domcontentloaded", timeout=15000)
             await asyncio.sleep(2)
             # Buscar indicador de sesión activa
-            avatar = await self._page.query_selector("[aria-label='Tu perfil']")
-            return avatar is not None
+            cookies = await self._context.cookies("https://www.facebook.com")
+            return any(c["name"] == "c_user" for c in cookies)
         except Exception:
             return False
 
@@ -99,8 +99,14 @@ class FacebookBrowserConnector:
             await asyncio.sleep(random.uniform(0.5, 1.5))
             await self._page.fill(S["login_password"], password)
             await asyncio.sleep(random.uniform(0.5, 1.5))
-            await self._page.click(S["login_button"])
-            await asyncio.sleep(3)
+            try:
+                await self._page.click(S["login_button"], timeout=8000)
+            except Exception:
+                try:
+                    await self._page.click("button[type='submit']", timeout=8000)
+                except Exception:
+                    await self._page.press(S["login_password"], "Enter")
+            await asyncio.sleep(4)
 
             # Manejar 2FA
             if totp_secret:
@@ -275,5 +281,3 @@ class FacebookBrowserConnector:
         if not self._page:
             raise RuntimeError("Navegador no iniciado")
         return await self._page.screenshot()
-EOF
-echo "written"

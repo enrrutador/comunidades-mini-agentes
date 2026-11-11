@@ -9,14 +9,22 @@ Este módulo define los endpoints y los esqueletos para la gestión
 de cuentas y la asignación de Páginas a personajes.
 """
 
+import asyncio
+import json
+from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
+from app.core.crypto import cifrar, descifrar
+import logging
+
+logger = logging.getLogger(__name__)
 from app.db.models import Cuenta, Pagina, Personaje, Plataforma
-from app.db.session import get_session
+from app.db.session import engine, get_session
+from app.services.browser.manager import get_browser_manager
 
 router = APIRouter(prefix="/facebook", tags=["facebook"])
 
@@ -102,7 +110,11 @@ def registrar_cuenta(
         metodo_autenticacion="browser_credentials",
         estado_autorizacion="pendiente",
     )
-    # TODO: cifrar password y totp_secret, guardar en token_usuario_cifrado
+    cuenta.email_usuario = data.email_o_usuario
+    cuenta.password_cifrado = cifrar(data.password)
+    cuenta.totp_secret_cifrado = (
+        cifrar(data.totp_secret) if data.totp_secret else None
+    )
     session.add(cuenta)
     session.commit()
     session.refresh(cuenta)
@@ -170,25 +182,75 @@ def eliminar_cuenta(cuenta_id: str, session: Session = Depends(get_session)):
     return {"status": "eliminada", "cuenta_id": cuenta_id}
 
 
-@router.post("/cuentas/{cuenta_id}/login")
-def iniciar_login(cuenta_id: str, session: Session = Depends(get_session)):
-    """
-    Iniciar sesión en Facebook vía navegador.
+def _ejecutar_login(cuenta_id: str) -> None:
+    """Tarea en segundo plano: login real de Facebook vía Playwright."""
 
-    TODO: encolar tarea en el Browser Manager para:
-    1. Crear contexto aislado.
-    2. Navegar a facebook.com/login.
-    3. Ingresar credenciales descifradas.
-    4. Manejar 2FA/checkpoint.
-    5. Guardar storage state cifrado.
-    6. Actualizar estado de la cuenta.
+    def _marcar_error(session: Session, mensaje: str) -> None:
+        logger.error("Login %s: %s", cuenta_id, mensaje)
+        cuenta = session.get(Cuenta, cuenta_id)
+        if cuenta:
+            cuenta.estado_conexion = "error"
+            session.add(cuenta)
+            session.commit()
+
+    with Session(engine) as session:
+        cuenta = session.get(Cuenta, cuenta_id)
+        if not cuenta:
+            return
+        try:
+            email = cuenta.email_usuario or ""
+            password = descifrar(cuenta.password_cifrado) if cuenta.password_cifrado else ""
+            totp = descifrar(cuenta.totp_secret_cifrado) if cuenta.totp_secret_cifrado else None
+            if not email or not password:
+                _marcar_error(session, "faltan credenciales")
+                return
+
+            async def _run() -> None:
+                manager = get_browser_manager()
+                connector = await manager.get_connector(cuenta_id)
+                try:
+                    ok = await connector.login(email, password, totp)
+                    if ok:
+                        state = await connector.get_storage_state()
+                        cuenta.storage_state_cifrado = cifrar(json.dumps(state))
+                        cuenta.estado_conexion = "conectado"
+                        cuenta.ultima_conexion = datetime.now(timezone.utc)
+                        logger.info("Login OK %s", cuenta_id)
+                    else:
+                        cuenta.estado_conexion = "error"
+                        logger.warning("Login rechazado %s", cuenta_id)
+                finally:
+                    await manager.release(cuenta_id)
+
+            asyncio.run(_run())
+            session.add(cuenta)
+            session.commit()
+        except Exception as error:  # noqa: BLE001
+            _marcar_error(session, str(error))
+
+
+@router.post("/cuentas/{cuenta_id}/login")
+def iniciar_login(
+    cuenta_id: str,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+):
+    """
+    Iniciar sesión en Facebook vía navegador (Playwright headless).
+
+    La tarea corre en segundo plano: el frontend consulta
+    GET /cuentas/{cuenta_id}/estado hasta que cambia a conectado/error.
     """
     cuenta = session.get(Cuenta, cuenta_id)
     if not cuenta:
         raise HTTPException(status_code=404, detail="Cuenta no encontrada.")
+    cuenta.estado_conexion = "conectando"
+    session.add(cuenta)
+    session.commit()
+    background_tasks.add_task(_ejecutar_login, cuenta_id)
     return {
         "status": "en_cola",
-        "message": "Login encolado. El Browser Manager lo procesará.",
+        "message": "Login en progreso. El navegador se abrirá en segundo plano.",
         "cuenta_id": cuenta_id,
     }
 

@@ -24,6 +24,7 @@ import {
   listAllPaginasFB,
   listCuentasFB,
   listPaginasFB,
+  estadoCuentaFB,
   loginCuentaFB,
   publicarPostFB,
   reaccionarFB,
@@ -456,12 +457,37 @@ export function FacebookView({ characters }: { characters: Character[] }) {
   }
 
   function handleLogin(cuenta: CuentaFB) {
-    pushFeed({ tipo: "post", perfil: cuenta.nombre_identificador, pagina: "login navegador…", status: "en_cola" });
+    pushFeed({ tipo: "post", perfil: cuenta.nombre_identificador, pagina: "abriendo navegador…", status: "en_cola" });
+    setCuentas((current) =>
+      current.map((item) =>
+        item.id === cuenta.id ? { ...item, estado_conexion: "conectando" } : item,
+      ),
+    );
     void loginCuentaFB(cuenta.id)
+      .then(() => new Promise<void>((resolve) => setTimeout(resolve, 2500)))
       .then(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        await refresh();
-        pushFeed({ tipo: "post", perfil: cuenta.nombre_identificador, pagina: "sesión abierta", status: "ok" });
+        // El login corre en segundo plano: sondear hasta conectado/error
+        for (let intento = 0; intento < 40; intento++) {
+          const estado = await estadoCuentaFB(cuenta.id);
+          if (estado.estado_conexion === "conectado" || estado.estado_conexion === "error") {
+            setCuentas((current) =>
+              current.map((item) =>
+                item.id === cuenta.id
+                  ? { ...item, estado_conexion: estado.estado_conexion, ultima_conexion: estado.ultima_conexion }
+                  : item,
+              ),
+            );
+            pushFeed(
+              estado.estado_conexion === "conectado"
+                ? { tipo: "post", perfil: cuenta.nombre_identificador, pagina: "sesión abierta", status: "ok" }
+                : { tipo: "post", perfil: cuenta.nombre_identificador, pagina: "login rechazado (¿checkpoint o credenciales?)", status: "error" },
+            );
+            await refresh();
+            return;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 3000));
+        }
+        pushFeed({ tipo: "post", perfil: cuenta.nombre_identificador, pagina: "login sigue en curso…", status: "en_cola" });
       })
       .catch((error: unknown) => {
         pushFeed({
@@ -471,6 +497,11 @@ export function FacebookView({ characters }: { characters: Character[] }) {
           texto: error instanceof Error ? error.message : "error",
           status: "error",
         });
+        setCuentas((current) =>
+          current.map((item) =>
+            item.id === cuenta.id ? { ...item, estado_conexion: "error" } : item,
+          ),
+        );
       });
   }
 
