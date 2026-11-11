@@ -90,6 +90,9 @@ class Personalidad(SQLModel):
     tendencia_preguntar: Optional[int] = Field(default=5, ge=1, le=10)
     tendencia_responder: Optional[int] = Field(default=5, ge=1, le=10)
     nivel_actividad: Optional[int] = Field(default=5, ge=1, le=10)
+    # Reacción que el personaje usa casi siempre (spec de comportamiento):
+    # like | love | haha | wow | sad | angry
+    reaccion_firma: Optional[str] = None
 
 
 class PersonajeBase(SQLModel):

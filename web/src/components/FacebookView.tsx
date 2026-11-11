@@ -398,6 +398,7 @@ export function FacebookView({ characters }: { characters: Character[] }) {
     void comentarFB({
       post_url: `https://facebook.com/${page.id_plataforma}/posts/${Date.now()}`,
       mensaje,
+      personaje_id: page.personaje_id ?? undefined,
     })
       .then(async () => {
         await new Promise((resolve) => setTimeout(resolve, 900));
@@ -421,6 +422,7 @@ export function FacebookView({ characters }: { characters: Character[] }) {
     void reaccionarFB({
       object_url: `https://facebook.com/${page.id_plataforma}/posts/${Date.now()}`,
       tipo: reaccion.tipo,
+      personaje_id: page.personaje_id ?? undefined,
     })
       .then(async () => {
         await new Promise((resolve) => setTimeout(resolve, 700));

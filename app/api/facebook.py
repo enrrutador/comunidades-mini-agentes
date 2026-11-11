@@ -22,11 +22,20 @@ from app.core.crypto import cifrar, descifrar
 import logging
 
 logger = logging.getLogger(__name__)
-from app.db.models import Cuenta, Pagina, Personaje, Plataforma
+from app.db.models import Cuenta, Pagina, Personaje, Plataforma, Tarea, TareaEstado
 from app.db.session import engine, get_session
 from app.services.browser.manager import get_browser_manager
+from app.services.orchestration.executor import ejecutar_tarea
 
 router = APIRouter(prefix="/facebook", tags=["facebook"])
+
+
+def _personaje_id_de_pagina(session: Session, pagina_id: str):
+    """El personaje dueño de una Página (la relación vive en Personaje.pagina_id)."""
+    personaje = session.exec(
+        select(Personaje).where(Personaje.pagina_id == pagina_id)
+    ).first()
+    return personaje.id if personaje else None
 
 
 # ---------------------------------------------------------------------------
@@ -74,11 +83,16 @@ class PublicarRequest(BaseModel):
 class ComentarRequest(BaseModel):
     post_url: str
     mensaje: str
+    # Obligatorio en la práctica: hay que saber COMO QUÉ Página se
+    # comenta. Sin personaje, el endpoint devuelve 400 (nunca actuar
+    # con la identidad equivocada ni con la del perfil personal).
+    personaje_id: Optional[str] = None
 
 
 class ReaccionarRequest(BaseModel):
     object_url: str
     tipo: str  # like, love, haha, wow, sad, angry
+    personaje_id: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -400,7 +414,7 @@ def detectar_paginas(
             avatar_url=p.avatar_url,
             estado_conexion=p.estado_conexion,
             capacidades=p.capacidades,
-            personaje_id=p.personaje_id,
+            personaje_id=_personaje_id_de_pagina(session, p.id),
         )
         for p in paginas
     ]
@@ -428,7 +442,7 @@ def listar_paginas_de_cuenta(cuenta_id: str, session: Session = Depends(get_sess
             avatar_url=p.avatar_url,
             estado_conexion=p.estado_conexion,
             capacidades=p.capacidades,
-            personaje_id=p.personaje_id,
+            personaje_id=_personaje_id_de_pagina(session, p.id),
         )
         for p in paginas
     ]
@@ -447,7 +461,7 @@ def listar_paginas(session: Session = Depends(get_session)):
             avatar_url=p.avatar_url,
             estado_conexion=p.estado_conexion,
             capacidades=p.capacidades,
-            personaje_id=p.personaje_id,
+            personaje_id=_personaje_id_de_pagina(session, p.id),
         )
         for p in paginas
     ]
@@ -501,46 +515,95 @@ def desasignar_pagina(
 
 # ---------------------------------------------------------------------------
 # Acciones (usadas por el orquestador, ejecutadas vía navegador)
+#
+# Cada acción crea una Tarea real y la ejecuta en el momento con el
+# ejecutor: navegador con la sesión de la cuenta, identidad de la
+# Página del personaje y verificación del resultado en Facebook.
+# La respuesta devuelve el estado REAL de la tarea (completada /
+# fallida + si quedó verificada), nunca un "en_cola" de mentira.
 # ---------------------------------------------------------------------------
+
+def _ejecutar_accion(session: Session, tarea: Tarea) -> dict:
+    session.add(tarea)
+    session.commit()
+    session.refresh(tarea)
+    ejecutar_tarea(session, tarea)
+    session.refresh(tarea)
+    estado = tarea.estado.value if hasattr(tarea.estado, "value") else tarea.estado
+    return {
+        "status": estado,
+        "tarea_id": tarea.id,
+        "verificado": (tarea.resultado or {}).get("verificado") if tarea.resultado else None,
+        "message": tarea.error or "Acción ejecutada.",
+        "resultado": tarea.resultado,
+    }
+
 
 @router.post("/publicar")
 def publicar_post(data: PublicarRequest, session: Session = Depends(get_session)):
-    """
-    Publicar un post en una Página de Facebook vía navegador.
-
-    TODO: encolar tarea en el Browser Manager.
-    """
+    """Publicar un post en una Página, como el personaje dueño de la Página."""
     pagina = session.get(Pagina, data.pagina_id)
     if not pagina:
         raise HTTPException(status_code=404, detail="Página no encontrada.")
-    if pagina.estado_conexion != "conectado":
-        raise HTTPException(status_code=400, detail="La Página no está conectada.")
-    return {
-        "status": "en_cola",
-        "message": "Publicación encolada para ejecución vía navegador.",
-        "pagina_id": data.pagina_id,
-    }
+    personaje_id = _personaje_id_de_pagina(session, pagina.id)
+    if not personaje_id:
+        raise HTTPException(
+            status_code=400,
+            detail="La Página no tiene personaje asignado: no se sabe como quién publicar.",
+        )
+    tarea = Tarea(
+        tipo="fb_publicar",
+        prioridad=5,
+        estado=TareaEstado.PENDIENTE,
+        payload={"pagina_id": data.pagina_id, "mensaje": data.mensaje},
+        personaje_id=personaje_id,
+    )
+    return _ejecutar_accion(session, tarea)
 
 
 @router.post("/comentar")
 def comentar(data: ComentarRequest, session: Session = Depends(get_session)):
-    """Comentar en un post de Facebook vía navegador."""
-    return {
-        "status": "en_cola",
-        "message": "Comentario encolado para ejecución vía navegador.",
-        "post_url": data.post_url,
-    }
+    """Comentar en un post, como la Página del personaje indicado."""
+    if not data.personaje_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Falta personaje_id: hay que saber como qué Página se comenta. "
+            "Sin identidad confirmada no se comenta.",
+        )
+    personaje = session.get(Personaje, data.personaje_id)
+    if not personaje:
+        raise HTTPException(status_code=404, detail="Personaje no encontrado.")
+    tarea = Tarea(
+        tipo="fb_comentar",
+        prioridad=5,
+        estado=TareaEstado.PENDIENTE,
+        payload={"post_url": data.post_url, "mensaje": data.mensaje},
+        comunidad_id=personaje.comunidad_id,
+        personaje_id=personaje.id,
+    )
+    return _ejecutar_accion(session, tarea)
 
 
 @router.post("/reaccionar")
 def reaccionar(data: ReaccionarRequest, session: Session = Depends(get_session)):
-    """Reaccionar a un post o comentario vía navegador."""
-    return {
-        "status": "en_cola",
-        "message": "Reacción encolada para ejecución vía navegador.",
-        "object_url": data.object_url,
-        "tipo": data.tipo,
-    }
+    """Reaccionar a un post, como la Página del personaje indicado."""
+    if not data.personaje_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Falta personaje_id: hay que saber como qué Página se reacciona.",
+        )
+    personaje = session.get(Personaje, data.personaje_id)
+    if not personaje:
+        raise HTTPException(status_code=404, detail="Personaje no encontrado.")
+    tarea = Tarea(
+        tipo="fb_reaccionar",
+        prioridad=5,
+        estado=TareaEstado.PENDIENTE,
+        payload={"object_url": data.object_url, "tipo_reaccion": data.tipo},
+        comunidad_id=personaje.comunidad_id,
+        personaje_id=personaje.id,
+    )
+    return _ejecutar_accion(session, tarea)
 
 
 @router.get("/leer-posts")
@@ -549,28 +612,48 @@ def leer_posts(
     limit: int = Query(10, ge=1, le=50),
     session: Session = Depends(get_session),
 ):
-    """Leer posts de una Página vía navegador (scraping)."""
+    """Leer posts de una Página vía navegador (scraping), de verdad."""
     pagina = session.get(Pagina, pagina_id)
     if not pagina:
         raise HTTPException(status_code=404, detail="Página no encontrada.")
-    return {
-        "status": "en_cola",
-        "message": "Lectura de posts encolada para ejecución vía navegador.",
-        "pagina_id": pagina_id,
-        "limit": limit,
-    }
+    personaje_id = _personaje_id_de_pagina(session, pagina.id)
+    if not personaje_id:
+        raise HTTPException(
+            status_code=400, detail="La Página no tiene personaje asignado."
+        )
+    tarea = Tarea(
+        tipo="fb_leer_posts",
+        prioridad=5,
+        estado=TareaEstado.PENDIENTE,
+        payload={"pagina_id": pagina_id, "limit": limit},
+        personaje_id=personaje_id,
+    )
+    resultado = _ejecutar_accion(session, tarea)
+    return {**resultado, "posts": (tarea.resultado or {}).get("posts", [])}
 
 
 @router.get("/leer-comentarios")
 def leer_comentarios(
     post_url: str = Query(...),
+    pagina_id: str = Query(...),
     limit: int = Query(50, ge=1, le=200),
     session: Session = Depends(get_session),
 ):
-    """Leer comentarios de un post vía navegador (scraping)."""
-    return {
-        "status": "en_cola",
-        "message": "Lectura de comentarios encolada para ejecución vía navegador.",
-        "post_url": post_url,
-        "limit": limit,
-    }
+    """Leer comentarios de un post vía navegador (scraping), de verdad."""
+    pagina = session.get(Pagina, pagina_id)
+    if not pagina:
+        raise HTTPException(status_code=404, detail="Página no encontrada.")
+    personaje_id = _personaje_id_de_pagina(session, pagina.id)
+    if not personaje_id:
+        raise HTTPException(
+            status_code=400, detail="La Página no tiene personaje asignado."
+        )
+    tarea = Tarea(
+        tipo="fb_leer_comentarios",
+        prioridad=5,
+        estado=TareaEstado.PENDIENTE,
+        payload={"post_url": post_url, "limit": limit},
+        personaje_id=personaje_id,
+    )
+    resultado = _ejecutar_accion(session, tarea)
+    return {**resultado, "comentarios": (tarea.resultado or {}).get("comentarios", [])}

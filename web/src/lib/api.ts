@@ -345,15 +345,15 @@ export function publicarPostFB(data: { pagina_id: string; mensaje: string; media
   );
 }
 
-export function comentarFB(data: { post_url: string; mensaje: string }) {
-  return request<{ status: string; message: string; post_url: string }>(
+export function comentarFB(data: { post_url: string; mensaje: string; personaje_id?: string }) {
+  return request<{ status: string; message: string; post_url: string; tarea_id?: string; verificado?: boolean | null }>(
     "/facebook/comentar",
     { method: "POST", body: JSON.stringify(data) },
   );
 }
 
-export function reaccionarFB(data: { object_url: string; tipo: string }) {
-  return request<{ status: string; message: string; object_url: string; tipo: string }>(
+export function reaccionarFB(data: { object_url: string; tipo: string; personaje_id?: string }) {
+  return request<{ status: string; message: string; object_url: string; tipo: string; tarea_id?: string; verificado?: boolean | null }>(
     "/facebook/reaccionar",
     { method: "POST", body: JSON.stringify(data) },
   );

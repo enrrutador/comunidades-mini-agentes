@@ -21,5 +21,13 @@ class Settings(BaseSettings):
     OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
     OLLAMA_BASE_URL: str = "http://localhost:11434/v1"
 
+    # Orquestación / ejecutor de tareas de Facebook
+    # La comunidad real cuelga de UNA sola cuenta: el ritmo se mide a nivel
+    # de la cuenta completa, no por personaje.
+    SCHEDULER_HABILITADO: bool = True
+    SCHEDULER_INTERVALO_SEG: int = 20
+    FB_MAX_ACCIONES_POR_HORA_CUENTA: int = 40
+    FB_PAUSA_ENTRE_ACCIONES_SEG: int = 8
+
 
 settings = Settings()

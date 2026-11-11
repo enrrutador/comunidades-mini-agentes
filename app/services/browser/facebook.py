@@ -15,6 +15,15 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+
+def _norm(texto: str) -> str:
+    """Normalizar texto para comparar nombres/contenido (minúsculas, sin tildes)."""
+    import unicodedata
+
+    t = unicodedata.normalize("NFKD", (texto or "").lower())
+    t = "".join(c for c in t if not unicodedata.combining(c))
+    return " ".join(t.split())
+
 try:
     from playwright.async_api import async_playwright, Browser, BrowserContext, Page
     PLAYWRIGHT_AVAILABLE = True
@@ -135,112 +144,360 @@ class FacebookBrowserConnector:
         """Delay aleatorio para simular comportamiento humano."""
         await asyncio.sleep(random.uniform(min_s, max_s))
 
-    async def publish_post(self, page_url: str, message: str) -> dict:
-        """Publicar un post en una Página de Facebook."""
+    async def current_identity_name(self) -> Optional[str]:
+        """Nombre de la identidad activa en la caja de comentario, si se puede leer."""
+        from app.services.browser.selectors import SELECTORS as S
+
+        if not self._page:
+            return None
+        try:
+            btn = await self._page.query_selector(S["identity_button"])
+            if btn:
+                label = (await btn.get_attribute("aria-label") or "").strip()
+                if label:
+                    return label
+            img = await self._page.query_selector("form img[alt]")
+            if img:
+                alt = (await img.get_attribute("alt") or "").strip()
+                if alt:
+                    return alt
+        except Exception:
+            pass
+        return None
+
+    async def switch_identity(self, page_name: str) -> bool:
+        """
+        Cambiar la identidad activa a la Página indicada.
+
+        Devuelve True solo si la Página apareció en el selector de
+        identidad y se la eligió. Si no se puede, devuelve False y el
+        llamador DEBE abortar: actuar con la identidad equivocada es el
+        error que este sistema no puede permitirse (el comentario
+        saldría como el perfil personal del administrador).
+        """
+        from app.services.browser.selectors import SELECTORS as S
+
+        if not self._page:
+            return False
+        try:
+            actual = await self.current_identity_name()
+            if actual and _norm(page_name) in _norm(actual):
+                return True
+
+            btn = await self._page.query_selector(S["identity_button"])
+            if not btn:
+                btn = await self._page.query_selector(
+                    "[aria-label*='perfil'], [aria-label*='cuenta actual']"
+                )
+            if not btn:
+                logger.warning("No se encontró el botón de cambio de identidad")
+                return False
+            await btn.click()
+            await self._human_delay(1, 2)
+
+            items = await self._page.query_selector_all(S["identity_menu_item"])
+            for item in items:
+                try:
+                    text = (await item.inner_text()).strip()
+                    if text and _norm(page_name) in _norm(text):
+                        await item.click()
+                        await self._human_delay(1, 2)
+                        logger.info("Identidad cambiada a '%s'", page_name)
+                        return True
+                except Exception:
+                    continue
+            logger.warning(
+                "La Página '%s' no apareció en el selector de identidad", page_name
+            )
+            return False
+        except Exception as e:
+            logger.error(f"Error cambiando identidad: {e}")
+            return False
+
+    async def _find_comment_element(self, author: str):
+        """Buscar el bloque del comentario cuyo autor coincide (normalizado)."""
+        if not self._page:
+            return None
+        blocks = await self._page.query_selector_all("[role='article']")
+        for block in blocks:
+            try:
+                link = await block.query_selector("a[role='link']")
+                if not link:
+                    continue
+                name = (await link.inner_text()).strip()
+                if name and _norm(name) == _norm(author):
+                    return block
+            except Exception:
+                continue
+        return None
+
+    async def publish_post(self, page_url: str, message: str, page_name: Optional[str] = None) -> dict:
+        """
+        Publicar un post en una Página de Facebook.
+
+        Falla en voz alta si falta algún elemento (nada de éxito
+        silencioso) y, si se indica page_name, verifica que el post haya
+        quedado publicado con la Página como autora.
+        """
         from app.services.browser.selectors import SELECTORS as S
 
         if not self._page:
             raise RuntimeError("Navegador no iniciado")
 
         try:
-            await self._page.goto(page_url, wait_until="domcontentloaded", timeout=15000)
+            await self._page.goto(page_url, wait_until="domcontentloaded", timeout=20000)
             await self._human_delay(2, 4)
 
-            # Clic en "Crear publicación"
             create_btn = await self._page.query_selector(S["create_post_button"])
-            if create_btn:
-                await create_btn.click()
-                await self._human_delay(1, 2)
+            if not create_btn:
+                return {
+                    "status": "error",
+                    "error": "No se encontró el botón 'Crear publicación' (¿la sesión está actuando como la Página?).",
+                    "verificado": False,
+                }
+            await create_btn.click()
+            await self._human_delay(1, 2)
 
-            # Escribir mensaje
             textarea = await self._page.query_selector(S["post_textarea"])
-            if textarea:
-                await textarea.click()
-                await self._page.keyboard.type(message, delay=random.randint(50, 150))
-                await self._human_delay(1, 2)
+            if not textarea:
+                return {
+                    "status": "error",
+                    "error": "No se encontró la caja de texto de la publicación.",
+                    "verificado": False,
+                }
+            await textarea.click()
+            await self._page.keyboard.type(message, delay=random.randint(50, 150))
+            await self._human_delay(1, 2)
 
-            # Publicar
             publish_btn = await self._page.query_selector(S["publish_button"])
-            if publish_btn:
-                await publish_btn.click()
-                await self._human_delay(2, 4)
+            if not publish_btn:
+                return {
+                    "status": "error",
+                    "error": "No se encontró el botón 'Publicar'.",
+                    "verificado": False,
+                }
+            await publish_btn.click()
+            await self._human_delay(3, 5)
 
-            return {"status": "publicado", "message": message[:50]}
+            verificado = False
+            if page_name:
+                posts = await self.get_page_posts(page_url, limit=5)
+                verificado = any(
+                    _norm(p.get("author", "")) == _norm(page_name)
+                    and _norm(message)[:60] in _norm(p.get("text", ""))
+                    for p in posts
+                )
+            return {
+                "status": "publicado",
+                "message": message[:50],
+                "identidad": page_name,
+                "verificado": verificado,
+            }
         except Exception as e:
             logger.error(f"Error al publicar: {e}")
-            return {"status": "error", "error": str(e)}
+            return {"status": "error", "error": str(e), "verificado": False}
 
-    async def publish_comment(self, post_url: str, message: str) -> dict:
-        """Comentar en un post de Facebook."""
+    async def publish_comment(
+        self,
+        post_url: str,
+        message: str,
+        page_name: Optional[str] = None,
+        reply_to_author: Optional[str] = None,
+    ) -> dict:
+        """
+        Comentar en un post de Facebook.
+
+        Si se indica page_name, primero cambia la identidad activa a
+        esa Página y ABORTA si no puede confirmarla (nunca comentar con
+        la identidad equivocada). Si se indica reply_to_author, responde
+        al comentario de ese autor (hilo) en vez de abrir un comentario
+        de primer nivel. Al final verifica en la página que el
+        comentario quedó con el autor esperado.
+        """
         from app.services.browser.selectors import SELECTORS as S
 
         if not self._page:
             raise RuntimeError("Navegador no iniciado")
 
         try:
-            await self._page.goto(post_url, wait_until="domcontentloaded", timeout=15000)
+            await self._page.goto(post_url, wait_until="domcontentloaded", timeout=20000)
             await self._human_delay(2, 4)
 
-            comment_btn = await self._page.query_selector(S["comment_button"])
-            if comment_btn:
-                await comment_btn.click()
-                await self._human_delay(1, 2)
+            if page_name:
+                ok = await self.switch_identity(page_name)
+                if not ok:
+                    return {
+                        "status": "error",
+                        "error": f"No se pudo confirmar la identidad '{page_name}'; no se comentó para no hacerlo con la identidad equivocada.",
+                        "verificado": False,
+                    }
 
-            comment_input = await self._page.query_selector(S["comment_input"])
-            if comment_input:
-                await comment_input.click()
-                await self._page.keyboard.type(message, delay=random.randint(50, 150))
-                await self._human_delay(0.5, 1.5)
-                await self._page.keyboard.press("Enter")
+            if reply_to_author:
+                target = await self._find_comment_element(reply_to_author)
+                if not target:
+                    return {
+                        "status": "error",
+                        "error": f"No se encontró el comentario de '{reply_to_author}' para responder.",
+                        "verificado": False,
+                    }
+                reply_btn = await target.query_selector(S["comment_reply_button"])
+                if not reply_btn:
+                    reply_btn = await target.query_selector("text=Responder")
+                if not reply_btn:
+                    return {
+                        "status": "error",
+                        "error": "El comentario no tiene botón Responder visible.",
+                        "verificado": False,
+                    }
+                await reply_btn.click()
                 await self._human_delay(1, 2)
+                comment_input = await target.query_selector(
+                    "[contenteditable='true'][role='textbox']"
+                )
+                if not comment_input:
+                    return {
+                        "status": "error",
+                        "error": "No apareció la caja de respuesta.",
+                        "verificado": False,
+                    }
+            else:
+                comment_btn = await self._page.query_selector(S["comment_button"])
+                if comment_btn:
+                    await comment_btn.click()
+                    await self._human_delay(1, 2)
+                comment_input = await self._page.query_selector(S["comment_input"])
+                if not comment_input:
+                    return {
+                        "status": "error",
+                        "error": "No se encontró la caja de comentario.",
+                        "verificado": False,
+                    }
 
-            return {"status": "comentado", "message": message[:50]}
+            await comment_input.click()
+            await self._page.keyboard.type(message, delay=random.randint(50, 150))
+            await self._human_delay(0.5, 1.5)
+            await self._page.keyboard.press("Enter")
+            await self._human_delay(2, 3)
+
+            verificado = False
+            if page_name:
+                comentarios = await self.get_post_comments(post_url, limit=50)
+                verificado = any(
+                    _norm(c.get("author", "")) == _norm(page_name)
+                    and _norm(message)[:60] in _norm(c.get("text", ""))
+                    for c in comentarios
+                )
+            return {
+                "status": "comentado",
+                "message": message[:50],
+                "identidad": page_name,
+                "es_respuesta": bool(reply_to_author),
+                "verificado": verificado,
+            }
         except Exception as e:
             logger.error(f"Error al comentar: {e}")
-            return {"status": "error", "error": str(e)}
+            return {"status": "error", "error": str(e), "verificado": False}
 
-    async def react(self, object_url: str, reaction_type: str = "like") -> dict:
-        """Reaccionar a un post o comentario."""
+    async def react(
+        self,
+        object_url: str,
+        reaction_type: str = "like",
+        page_name: Optional[str] = None,
+        comment_author: Optional[str] = None,
+    ) -> dict:
+        """
+        Reaccionar a un post o a un comentario puntual (comment_author).
+
+        Si se indica page_name, cambia la identidad activa a esa Página
+        antes de reaccionar y aborta si no puede confirmarla (las
+        reacciones también llevan la identidad de quien las pone).
+        """
         from app.services.browser.selectors import SELECTORS as S
 
         if not self._page:
             raise RuntimeError("Navegador no iniciado")
 
         try:
-            await self._page.goto(object_url, wait_until="domcontentloaded", timeout=15000)
+            await self._page.goto(object_url, wait_until="domcontentloaded", timeout=20000)
             await self._human_delay(2, 4)
 
-            # Mapeo de tipo de reacción a selector
-            reaction_map = {
-                "like": S["like_button"],
-                "love": S["reaction_love"],
-                "haha": S["reaction_haha"],
-                "wow": S["reaction_wow"],
-                "sad": S["reaction_sad"],
-                "angry": S["reaction_angry"],
-            }
+            if page_name:
+                ok = await self.switch_identity(page_name)
+                if not ok:
+                    return {
+                        "status": "error",
+                        "error": f"No se pudo confirmar la identidad '{page_name}'; no se reaccionó.",
+                        "verificado": False,
+                    }
+
+            scope = self._page
+            if comment_author:
+                block = await self._find_comment_element(comment_author)
+                if not block:
+                    return {
+                        "status": "error",
+                        "error": f"No se encontró el comentario de '{comment_author}'.",
+                        "verificado": False,
+                    }
+                scope = block
+
+            like_btn = await scope.query_selector(S["like_button"])
+            if not like_btn:
+                return {
+                    "status": "error",
+                    "error": "No se encontró el botón 'Me gusta'.",
+                    "verificado": False,
+                }
 
             if reaction_type == "like":
-                like_btn = await self._page.query_selector(S["like_button"])
-                if like_btn:
-                    await like_btn.click()
+                await like_btn.click()
             else:
-                # Hover para mostrar picker
-                like_btn = await self._page.query_selector(S["like_button"])
-                if like_btn:
-                    await like_btn.hover()
-                    await self._human_delay(0.5, 1)
-                    selector = reaction_map.get(reaction_type)
-                    if selector:
-                        reaction_btn = await self._page.query_selector(selector)
-                        if reaction_btn:
-                            await reaction_btn.click()
+                reaction_map = {
+                    "love": S["reaction_love"],
+                    "haha": S["reaction_haha"],
+                    "wow": S["reaction_wow"],
+                    "sad": S["reaction_sad"],
+                    "angry": S["reaction_angry"],
+                }
+                selector = reaction_map.get(reaction_type)
+                if not selector:
+                    return {
+                        "status": "error",
+                        "error": f"Tipo de reacción desconocido: {reaction_type}",
+                        "verificado": False,
+                    }
+                await like_btn.hover()
+                await self._human_delay(0.8, 1.5)
+                reaction_btn = await self._page.query_selector(selector)
+                if not reaction_btn:
+                    return {
+                        "status": "error",
+                        "error": f"No apareció la reacción '{reaction_type}' en el selector.",
+                        "verificado": False,
+                    }
+                await reaction_btn.click()
 
             await self._human_delay(1, 2)
-            return {"status": "reaccionado", "tipo": reaction_type}
+
+            # Verificación básica: el botón queda en estado activo.
+            verificado = False
+            try:
+                state_btn = await scope.query_selector(S["like_button"])
+                if state_btn:
+                    label = (await state_btn.get_attribute("aria-label") or "").lower()
+                    verificado = "quitar" in label or "remove" in label
+            except Exception:
+                pass
+
+            return {
+                "status": "reaccionado",
+                "tipo": reaction_type,
+                "identidad": page_name,
+                "verificado": verificado,
+            }
         except Exception as e:
             logger.error(f"Error al reaccionar: {e}")
-            return {"status": "error", "error": str(e)}
+            return {"status": "error", "error": str(e), "verificado": False}
 
     async def get_page_posts(self, page_url: str, limit: int = 10) -> list[dict]:
         """Leer posts de una Página de Facebook."""
@@ -275,6 +532,62 @@ class FacebookBrowserConnector:
         except Exception as e:
             logger.error(f"Error al leer posts: {e}")
             return posts
+
+    async def get_post_comments(self, post_url: str, limit: int = 50) -> list[dict]:
+        """
+        Leer los comentarios de un post (autor + texto).
+
+        Se usa para dos cosas: verificar que un comentario propio quedó
+        publicado con la identidad correcta, y leer los comentarios que
+        reciben los personajes para decidir respuestas.
+        El primer bloque [role=article] de la página es el post mismo y
+        se salta.
+        """
+        if not self._page:
+            raise RuntimeError("Navegador no iniciado")
+
+        comentarios: list[dict] = []
+        try:
+            await self._page.goto(post_url, wait_until="domcontentloaded", timeout=20000)
+            await self._human_delay(2, 4)
+
+            # Expandir la vista de comentarios si Facebook la colapsa
+            for texto_boton in (
+                "Ver más comentarios",
+                "View more comments",
+                "Todos los comentarios",
+                "All comments",
+            ):
+                try:
+                    btn = await self._page.query_selector(f"text={texto_boton}")
+                    if btn:
+                        await btn.click()
+                        await self._human_delay(1, 2)
+                except Exception:
+                    pass
+
+            blocks = await self._page.query_selector_all("[role='article']")
+            for block in blocks[1:]:  # el primero es el post
+                try:
+                    link = await block.query_selector("a[role='link']")
+                    author = (await link.inner_text()).strip() if link else ""
+                    spans = await block.query_selector_all("[dir='auto']")
+                    textos: list[str] = []
+                    for sp in spans:
+                        t = (await sp.inner_text()).strip()
+                        if t and t != author and t not in textos:
+                            textos.append(t)
+                    text = " ".join(textos)
+                    if author and text:
+                        comentarios.append({"author": author, "text": text})
+                    if len(comentarios) >= limit:
+                        break
+                except Exception:
+                    continue
+            return comentarios
+        except Exception as e:
+            logger.error(f"Error al leer comentarios: {e}")
+            return comentarios
 
     async def crear_pagina(self, nombre: str, categoria: str = "Comunidad") -> dict:
         """Crear una Página de Facebook nueva y devolver su URL/id."""

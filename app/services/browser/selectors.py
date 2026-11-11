@@ -28,6 +28,15 @@ SELECTORS = {
     "comment_button": "[aria-label='Comentar']",
     "comment_input": "[contenteditable='true'][role='textbox'][aria-label*='comentario']",
     "comment_submit": "[aria-label='Comentar'][role='button']",
+    "comment_reply_button": "[aria-label='Responder']",
+    "comment_like_button": "[aria-label='Me gusta']",
+
+    # Identidad activa (como qué Página/perfil se actúa en un post).
+    # En la vista de un post, junto a la caja de comentario hay un botón con
+    # el avatar y el nombre de la identidad activa; al hacer clic abre la
+    # lista "Comentar como" con las Páginas administradas.
+    "identity_button": "[aria-label*='Cambiar de identidad'], [aria-label*='Comentar como'], [aria-label*='Switch']",
+    "identity_menu_item": "[role='menuitem'], [role='option'], [role='listitem']",
 
     # Reacciones
     "like_button": "[aria-label='Me gusta']",

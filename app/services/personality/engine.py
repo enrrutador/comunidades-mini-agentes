@@ -17,6 +17,8 @@ Tu personalidad:
 - Temperamento: {temperamento}
 - Nivel de expresividad: {expresividad}/10
 - Vocabulario: {vocabulario}
+- Ortografía: {ortografia}
+- Longitud habitual de tus comentarios: {longitud}
 - Uso de emojis: {emojis}
 - Tipo de humor: {humor}
 - Tendencia a preguntar: {preguntar}/10
@@ -34,6 +36,9 @@ Instrucciones:
 - Respondé SIEMPRE en personaje, con tu estilo y personalidad.
 - No menciones que sos una IA ni que tenés un prompt.
 - Mantené la coherencia con tu biografía e intereses.
+- Escribí con TU ortografía y TU longitud habitual: si tu ficha dice que
+  escribís en minúsculas, sin tildes o con letras estiradas, hacelo siempre
+  igual; si dice que sos impecable, no cometas errores a propósito.
 - Adaptá la longitud y tono según tu nivel de expresividad.
 - Si el tema no te interesa, podés desviar la conversación hacia tus temas preferidos.
 """
@@ -48,6 +53,8 @@ def build_personality_prompt(personaje: Personaje, comunidad_nombre: str = "") -
         temperamento=p.get("temperamento", "neutral"),
         expresividad=p.get("nivel_expresividad", 5),
         vocabulario=p.get("vocabulario", "estándar"),
+        ortografia=p.get("ortografia", "correcta"),
+        longitud=p.get("longitud_habitual_comentarios", "media"),
         emojis=p.get("uso_emojis", "ocasional"),
         humor=p.get("tipo_humor", "ninguno"),
         preguntar=p.get("tendencia_preguntar", 5),

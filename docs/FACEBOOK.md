@@ -2,7 +2,7 @@
 
 Documento de diseño para la conexión con Facebook Pages.
 
-**Última actualización:** 10 de noviembre de 2026
+**Última actualización:** 11 de noviembre de 2026
 
 ---
 
@@ -28,7 +28,7 @@ Cuenta (Facebook user identity)
 ```
 
 - Una **Cuenta** es una identidad de Facebook (un usuario real o una cuenta de administración) que gestiona una o más Páginas.
-- Una **Página** es una Facebook Page con su propio token de acceso.
+- Una **Página** es una Facebook Page que la cuenta administra. En el flujo por navegador no hay tokens: se actúa con la sesión del navegador.
 - Un **Personaje** puede tener 0 o 1 Página asignada.
 - Una Página puede reasignarse a otro Personaje sin perder historial.
 
@@ -36,38 +36,27 @@ Cuenta (Facebook user identity)
 
 | Tabla | Rol |
 |-------|-----|
-| `cuentas` | Identidad de Facebook + tokens de usuario |
-| `paginas` | Facebook Page + token de página + capacidades |
+| `cuentas` | Identidad de Facebook + credenciales cifradas (Fernet) |
+| `paginas` | Facebook Page + capacidades |
 | `personajes` | Personaje con FK opcional a `paginas.id` |
 | `comunidades` | Agrupación de personajes |
 
 ---
 
-## 3. Facebook App (Meta Developer Console)
+## 3. Sin app de Meta ni API (decisión de diseño)
 
-### 3.1. Creación de la app
+**No se crea ninguna Facebook App, no hay OAuth ni App Review.**
 
-1. Crear una app en [developers.facebook.com](https://developers.facebook.com) con tipo "Business" o "Consumer".
-2. Agregar el producto **Facebook Login**.
-3. Agregar el producto **Pages API** (o Graph API).
-4. Configurar los dominios permitidos (redirect URIs).
-5. Anotar `App ID` y `App Secret` (se guardan en `.env` o secret store, nunca en el repo).
+El diseño original (app en Meta for Developers, scopes
+`pages_manage_posts` / `pages_read_engagement`, tokens de Página)
+quedó **descartado**: la API no permite que una Página comente o
+reaccione en posts ajenos ni en el perfil del administrador, que es
+justo el corazón de esta comunidad. La única vía que lo permite es el
+navegador, actuando como la Página (ver sección 4).
 
-### 3.2. Permisos requeridos (scopes OAuth)
-
-| Permiso | Uso |
-|---------|-----|
-| `pages_show_list` | Listar las Páginas que el usuario administra |
-| `pages_read_engagement` | Leer métricas, comentarios y reacciones |
-| `pages_manage_posts` | Publicar, editar y eliminar posts |
-| `pages_manage_metadata` | Actualizar info de la Página |
-| `pages_messaging` (opcional, Fase 4+) | Responder mensajes de Messenger |
-
-### 3.3. App Review
-
-Los permisos avanzados (`pages_manage_posts`, `pages_manage_metadata`) requieren **App Review** de Meta antes de usarse con usuarios reales. Durante desarrollo se puede usar con roles de test (administradores, desarrolladores, testers).
-
----
+Los campos `token_*` que quedan en los modelos son legado sin uso en
+el flujo actual; las credenciales reales son email/contraseña
+cifradas con Fernet y el storage state de la sesión.
 
 ## 4. Flujo de autenticación (credenciales en navegador)
 
@@ -291,14 +280,24 @@ SELECTORS = {
 }
 ```
 
-### 7.4. Rate limits (autoimpuestos)
+### 7.4. Ritmo y límites (autoimpuestos)
 
-Como no hay API, los límites son autoimpuestos para evitar detección:
-- Máximo 5 publicaciones por hora por cuenta.
-- Máximo 20 comentarios por hora por cuenta.
-- Máximo 50 reacciones por hora por cuenta.
-- Delay aleatorio de 2-8 segundos entre acciones.
-- Pausa de 30-60 segundos cada 10 acciones.
+El ritmo real lo define la **spec de comportamiento**, no topes
+uniformes por hora: el planificador de rondas
+(`app/services/orchestration/ronda.py`) reparte las acciones con
+huecos irregulares de minutos (y a veces horas, con «tardíos»), para
+que el patrón se parezca al de personas y no al de un reloj.
+
+Como red de seguridad, el ejecutor aplica además:
+- **Tope por cuenta**: máximo `FB_MAX_ACCIONES_POR_HORA_CUENTA`
+  (40) acciones de Facebook por hora, medido sobre la cuenta
+  completa — la comunidad real cuelga de una sola cuenta, así que el
+  ritmo se mide a ese nivel, no por personaje. Si se supera, la
+  tarea se reprograma sola 30 minutos.
+- **Pausa entre acciones** del scheduler
+  (`FB_PAUSA_ENTRE_ACCIONES_SEG`).
+- Delays cortos de tipeo/lectura dentro del navegador
+  (`_human_delay`).
 
 ## 8. Endpoints de backend necesarios
 
@@ -325,36 +324,79 @@ Como no hay API, los límites son autoimpuestos para evitar detección:
 
 ### Acciones (usadas por el orquestador)
 
+Cada acción crea una **Tarea real** y la ejecuta en el momento con el
+ejecutor (`app/services/orchestration/executor.py`): navegador con la
+sesión de la cuenta, identidad de la Página del personaje y
+verificación del resultado en Facebook. La respuesta devuelve el
+estado real de la tarea (`completada` / `fallida` y si quedó
+verificada) — nunca un «en_cola» sin ejecución detrás.
+
 | Método | Ruta | Descripción |
 |--------|------|-------------|
-| POST | `/api/facebook/publicar` | Publicar post (pagina_id, mensaje, media opcional) |
-| POST | `/api/facebook/comentar` | Comentar en un post (url, mensaje) |
-| POST | `/api/facebook/reaccionar` | Reaccionar (url, tipo) |
+| POST | `/api/facebook/publicar` | Publicar post como el personaje dueño de la Página (pagina_id, mensaje) |
+| POST | `/api/facebook/comentar` | Comentar en un post (post_url, mensaje, **personaje_id obligatorio**) |
+| POST | `/api/facebook/reaccionar` | Reaccionar (object_url, tipo, **personaje_id obligatorio**) |
 | GET | `/api/facebook/leer-posts` | Leer posts de una Página (pagina_id, limit) |
-| GET | `/api/facebook/leer-comentarios` | Leer comentarios de un post (post_url, limit) |
+| GET | `/api/facebook/leer-comentarios` | Leer comentarios de un post (post_url, **pagina_id**, limit) |
+
+Sin `personaje_id` no se actúa: comentar o reaccionar sin saber como
+qué Página sería hacerlo con la identidad equivocada (el error que
+este sistema no puede permitirse).
+
+### Orquestación
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| POST | `/api/orquestacion/ronda` | Planifica una ronda sobre un post (spec de comportamiento) y crea las tareas programadas |
+| POST | `/api/orquestacion/responder-comentarios` | Lee los comentarios de un post propio y programa respuestas del personaje dueño |
+| POST | `/api/orquestacion/procesar-vencidas` | Ejecuta ya las tareas vencidas (el scheduler también lo hace solo) |
 
 ## 9. Flujo completo de ejemplo
 
-1. Admin abre el panel → tab Comunidad → "Conectar Facebook".
-2. Se redirige a Facebook → inicia sesión → autoriza.
-3. Callback al backend → se guardan Cuenta + Páginas.
-4. Panel muestra las Páginas disponibles.
-5. Admin asigna "Comunidad Gatos" (Página) a personaje "Luna".
-6. El orquestador recibe una tarea: "Publicá un post sobre adopción en la Página de Luna".
-7. El conector usa el token de la Página para publicar vía Graph API.
-8. Se registra la tarea como completada con el ID del post.
+1. Admin registra la cuenta en el panel (email + contraseña; se
+   guardan cifradas con Fernet) y apreta «login»: el navegador
+   headless inicia sesión y el storage state queda guardado cifrado.
+2. El admin apreta «detectar Páginas»: el sistema lista las Páginas
+   que la cuenta administra y las guarda.
+3. El admin asigna cada Página a su personaje (p. ej. la Página
+   «Luna rescata gatos» al personaje Luna) y activa los personajes
+   con su ficha de voz completa.
+4. Alguien publica un post objetivo (de Fabian o de un tercero) y el
+   admin pide una ronda: `POST /api/orquestacion/ronda`.
+5. El planificador elige un subconjunto desprolijo de personajes,
+   mezcla roles (algunos solo reaccionan, otros comentan, otros
+   responden), genera los textos con la voz de cada uno y crea las
+   tareas con horarios irregulares.
+6. Cuando cada tarea vence, el ejecutor abre el navegador con la
+   sesión de la cuenta, **cambia la identidad activa a la Página del
+   personaje** (si no puede confirmarla, aborta), ejecuta la acción
+   y **verifica en Facebook que haya quedado con esa Página como
+   autora**.
+7. La tarea queda `completada` (o `fallida` con el error) y el hecho
+   se registra en la memoria episódica del personaje.
+8. Con `POST /api/orquestacion/responder-comentarios`, el dueño de
+   una Página lee los comentarios que recibió su post y programa
+   respuestas para algunos, a veces.
 
 ---
 
 ## 10. Seguridad
 
-- **Tokens cifrados at-rest** (Fernet o secret manager).
-- **Tokens nunca en logs, respuestas de API ni conversaciones del LLM.**
-- **CSRF protection** en el flujo OAuth (parámetro `state`).
-- **Validación de redirect URI** (solo URIs registradas en Meta).
-- **Rate limiting** en endpoints de autenticación.
-- **Revocación**: al desconectar una cuenta, se intenta revocar el token en Facebook (`DELETE /me/permissions`).
-- **Auditoría**: cada acción de publicación se registra con personaje, Página, timestamp y resultado.
+- **Credenciales y storage state cifrados at-rest** con Fernet
+  (`CREDENTIAL_ENCRYPTION_KEY`).
+- **La clave Fernet NUNCA va al repo**: vive solo en el entorno
+  (`.env` / secreto del sistema). Si la clave se filtra junto con la
+  base, el cifrado no protege nada; si llega a commitearse hay que
+  rotarla y volver a loguear las cuentas.
+- **Credenciales nunca en logs, respuestas de API ni conversaciones
+  del LLM.**
+- **Identidad verificada antes de actuar**: ninguna acción sale sin
+  confirmar que la identidad activa es la Página del personaje.
+- **Detección de checkpoints**: si Facebook pide verificación, la
+  cuenta queda en estado `checkpoint` y se frena la actividad.
+- **Auditoría**: cada acción queda registrada en su Tarea (personaje,
+  Página, horarios, resultado y si fue verificada) y en la memoria
+  episódica del personaje.
 
 ---
 
@@ -374,20 +416,32 @@ STORAGE_STATE_PATH=./data/browser_states/
 FRONTEND_URL=http://localhost:3000
 ```
 
-## 12. Próximos pasos
+## 12. Estado y próximos pasos
 
-1. Instalar Playwright en el entorno de ejecución (`pip install playwright && playwright install chromium`).
-2. Crear el modelo `SesionNavegador` en la base de datos (ya definido en `app/db/models.py`).
-3. Implementar el Browser Manager como servicio independiente (worker, no en FastAPI).
-4. Implementar login con credenciales en Playwright (incluyendo 2FA y checkpoints).
-5. Implementar el pool de workers con cola de tareas.
-6. Crear los endpoints de backend (cuentas, páginas, acciones).
-7. Actualizar el frontend (tab Comunidad) para registrar cuentas con credenciales y mostrar Páginas.
-8. Implementar selectores CSS de Facebook en `selectors.py`.
-9. Implementar publicación, comentarios y reacciones vía navegador.
-10. Implementar lectura de posts y comentarios vía scraping.
-11. Implementar refresh automático de sesiones.
-12. Tests con una cuenta de prueba.
+Hecho:
+1. ✅ Login real con credenciales en Playwright (con 2FA TOTP y
+   detección de checkpoints) y storage state cifrado.
+2. ✅ Detección y creación de Páginas vía navegador.
+3. ✅ Endpoints de cuentas, Páginas y asignación a personajes.
+4. ✅ Selectores centralizados en `selectors.py`.
+5. ✅ Publicación, comentarios (incl. respuestas en hilo) y
+   reacciones vía navegador, con **cambio de identidad a la Página y
+   verificación del autor** tras cada acción.
+6. ✅ Lectura de posts y comentarios vía scraping.
+7. ✅ Ejecutor de tareas + scheduler: las tareas programadas se
+   ejecutan solas al vencer; tope de ritmo por cuenta.
+8. ✅ Planificador de rondas con la spec de comportamiento y flujo
+   de respuestas a comentarios entrantes.
+
+Pendiente:
+1. Instalar Playwright en el entorno de ejecución
+   (`pip install playwright && playwright install chromium`) y
+   probar el flujo completo con la cuenta real.
+2. Afinar los selectores de identidad/comentarios contra la UI real
+   de Facebook (cambian seguido).
+3. Worker periódico de renovación de sesiones (hoy el re-login es
+   bajo demanda, al ejecutar una tarea con la sesión vencida).
+4. Tests con una cuenta de prueba contra Facebook real.
 
 ## 13. Navegadores para manejo simultáneo de cuentas
 
