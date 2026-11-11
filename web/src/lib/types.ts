@@ -56,6 +56,8 @@ export interface Unit {
   botId: string;
   label: string;
   status: UnitStatus;
+  output?: string;
+  error?: string;
 }
 
 export interface RunState {
@@ -73,6 +75,13 @@ export interface LogEntry {
   color?: Color;
 }
 
+export interface RunOutput {
+  label: string;
+  bot: string;
+  character?: string;
+  content: string;
+}
+
 export interface RunRecord {
   id: string;
   prompt: string;
@@ -84,6 +93,7 @@ export interface RunRecord {
   startedAt: string;
   durationMs: number;
   logs: LogEntry[];
+  outputs?: RunOutput[];
 }
 
 export interface ProviderConfig {

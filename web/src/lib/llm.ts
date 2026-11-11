@@ -36,9 +36,14 @@ async function readJson(response: Response): Promise<LLMResponse> {
 export async function callLLM(
   prompt: string,
   settings: Settings,
+  options?: { system?: string; maxTokens?: number },
 ): Promise<string> {
   const provider = activeProvider(settings);
   if (!provider) throw new Error("No hay un proveedor LLM activo.");
+
+  const system =
+    options?.system ??
+    "Sos el orquestador de Pulse OS, un mesh de mini-agentes para comunidades sociales. Respondé en español, breve y accionable. Proponé un plan de unidades concretas para los bots y marcá qué requiere aprobación humana.";
 
   const response = await fetch("/api/llm", {
     method: "POST",
@@ -48,13 +53,9 @@ export async function callLLM(
       apiKey: provider.apiKey,
       model: provider.model,
       temperature: settings.temperature,
-      maxTokens: settings.maxTokens,
+      maxTokens: options?.maxTokens ?? settings.maxTokens,
       messages: [
-        {
-          role: "system",
-          content:
-            "Sos el orquestador de Pulse OS, un mesh de mini-agentes para comunidades sociales. Respondé en español, breve y accionable. Proponé un plan de unidades concretas para los bots y marcá qué requiere aprobación humana.",
-        },
+        { role: "system", content: system },
         { role: "user", content: prompt },
       ],
     }),

@@ -233,6 +233,57 @@ export function OutputPanel({
           </div>
         )}
 
+        {(() => {
+          const generated = units.filter((unit) => unit.output);
+          if (generated.length === 0) return null;
+          return (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between font-mono text-[8px] text-slate-500">
+                <span>CONTENIDO GENERADO</span>
+                <span>{generated.length}</span>
+              </div>
+              {generated
+                .slice()
+                .reverse()
+                .slice(0, 8)
+                .map((unit) => {
+                  const bot = bots.find((item) => item.id === unit.botId);
+                  return (
+                    <div
+                      key={unit.id}
+                      className="animate-chip-in rounded-md border border-white/[0.06] bg-white/[0.02] p-2"
+                    >
+                      <div className="flex items-center justify-between gap-1 font-mono text-[8px]">
+                        <span className="truncate text-slate-300">
+                          {unit.label}
+                          {bot ? ` · ${bot.name}` : ""}
+                        </span>
+                        <span
+                          className={
+                            unit.status === "verified"
+                              ? "text-neon-green"
+                              : unit.status === "rejected"
+                              ? "text-neon-red"
+                              : "text-neon-cyan"
+                          }
+                        >
+                          {unit.status === "verified"
+                            ? "ok"
+                            : unit.status === "rejected"
+                            ? "rej"
+                            : "···"}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-[10px] leading-snug text-slate-400">
+                        {unit.output}
+                      </p>
+                    </div>
+                  );
+                })}
+            </div>
+          );
+        })()}
+
         {llmReply ? (
           <div className="neon-card glow-cyan p-2.5">
             <div className="flex items-center justify-between gap-2">

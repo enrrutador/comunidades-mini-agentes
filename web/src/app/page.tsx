@@ -44,6 +44,40 @@ import type {
   Unit,
 } from "@/lib/types";
 
+const DEMO_CONTENT: string[] = [
+  "Hoy hicimos una limpieza del refugio y los chicos respondieron genial 🐾",
+  "Tip del día: revisá las orejas de tu gato una vez por semana, evita infecciones.",
+  "Se busca hogar para Simona, 2 años, super cariñosa. Compartan!",
+  "Les dejamos el calendario de vacunación gratuito para este mes.",
+  "Gracias a todos los que donaron alimento, llegamos a la meta del mes 🙌",
+];
+
+function demoUnitContent(persona: Character | undefined, label: string): string {
+  const base = DEMO_CONTENT[Math.floor(Math.random() * DEMO_CONTENT.length)];
+  if (persona) return `${base} — ${persona.name}`;
+  return `${base} (${label})`;
+}
+
+function unitSystem(
+  bot: Bot,
+  persona: Character | undefined,
+  workspaceName: string,
+): string {
+  const lines = [
+    `Sos ${bot.name}, un bot del mesh de Pulse OS.`,
+    bot.instructions ? `Instrucciones: ${bot.instructions}` : `Rol: ${bot.desc}`,
+  ];
+  if (persona) {
+    lines.push(
+      `Operás como ${persona.name} en la comunidad "${workspaceName}". Temperamento: ${persona.temperamento}. Temas: ${persona.temas.join(", ")}. Bio: ${persona.bio}. Escribí como una persona real de esa comunidad, en primera persona.`,
+    );
+  }
+  lines.push(
+    "Respondé en español rioplatense. Devolvé ÚNICAMENTE el contenido final para publicar (sin prefijos, sin explicaciones, sin comillas). Máximo 3 frases cortas.",
+  );
+  return lines.join("\n");
+}
+
 export default function PulseOS() {
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("Global");
@@ -259,24 +293,59 @@ export default function PulseOS() {
         startedAt,
         durationMs: Date.now() - startMs,
         logs: runLogs.slice(-24),
+        outputs: collected
+          .filter((unit) => unit.output && unit.status === "verified")
+          .map((unit) => {
+            const bot = pool.find((item) => item.id === unit.botId);
+            return {
+              label: unit.label,
+              bot: bot?.name ?? unit.botId,
+              content: unit.output as string,
+            };
+          })
+          .slice(0, 20),
       };
       setRuns((prev) => [record, ...prev].slice(0, 30));
     }
 
-    function step() {
-      if (tokenRef.current !== token) return;
+    const personasPool = characters.filter(
+      (character) => character.communityId === workspace,
+    );
 
-      if (index > 0) {
-        const previous = collected[index - 1];
-        previous.status =
-          Math.random() < (settings.autoVerify ? 0.08 : 0.16)
-            ? "rejected"
-            : "verified";
-        setRun((current) => ({
-          ...current,
-          units: collected.map((unit) => ({ ...unit })),
-        }));
+    async function executeUnit(
+      bot: Bot,
+      persona: Character | undefined,
+      label: string,
+    ): Promise<{ ok: boolean; content: string; error?: string }> {
+      await new Promise((resolve) => setTimeout(resolve, 350 + Math.random() * 400));
+      if (!configured) {
+        return { ok: true, content: demoUnitContent(persona, label) };
       }
+      try {
+        const content = await callLLM(
+          `Tarea del operador: ${prompt}\nUnidad a ejecutar: ${label}`,
+          settings,
+          { system: unitSystem(bot, persona, workspaceName), maxTokens: 240 },
+        );
+        if (!content || content.trim().length < 30) {
+          return {
+            ok: false,
+            content: content ?? "",
+            error: "contenido insuficiente",
+          };
+        }
+        return { ok: true, content: content.trim() };
+      } catch (error) {
+        return {
+          ok: false,
+          content: "",
+          error: error instanceof Error ? error.message : "error de LLM",
+        };
+      }
+    }
+
+    async function step() {
+      if (tokenRef.current !== token) return;
 
       if (index >= expected) {
         finish();
@@ -284,6 +353,8 @@ export default function PulseOS() {
       }
 
       const bot = pool[index];
+      const persona =
+        personasPool.length > 0 ? personasPool[index % personasPool.length] : undefined;
       const unit: Unit = {
         id: String(index + 1).padStart(2, "0"),
         botId: bot.id,
@@ -295,12 +366,31 @@ export default function PulseOS() {
         ...current,
         units: collected.map((item) => ({ ...item })),
       }));
-      pushLog("mesh", `unit ${unit.id} · ${bot.name}`, bot.color);
+      pushLog(
+        "mesh",
+        `unit ${unit.id} · ${unit.label}${persona ? ` · ${persona.name}` : ""}`,
+        bot.color,
+      );
       index += 1;
-      timerRef.current = setTimeout(step, 620 + Math.random() * 260);
+
+      const result = await executeUnit(bot, persona, unit.label);
+      if (tokenRef.current !== token) return;
+      unit.status = result.ok ? "verified" : "rejected";
+      unit.output = result.content || undefined;
+      unit.error = result.error;
+      setRun((current) => ({
+        ...current,
+        units: collected.map((item) => ({ ...item })),
+      }));
+      pushLog(
+        "check",
+        `${unit.label} · ${result.ok ? "verified" : `rejected · ${result.error ?? ""}`}`,
+        result.ok ? "green" : "red",
+      );
+      timerRef.current = setTimeout(step, 420);
     }
 
-    step();
+    void step();
   }
 
   function stopRun() {
