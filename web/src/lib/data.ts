@@ -76,7 +76,7 @@ export const PROVIDERS: ProviderPreset[] = [
   { id: "openai", name: "OpenAI", baseUrl: "https://api.openai.com/v1", model: "gpt-4o-mini", needsKey: true },
   { id: "openrouter", name: "OpenRouter", baseUrl: "https://openrouter.ai/api/v1", model: "openai/gpt-4o-mini", needsKey: true },
   { id: "groq", name: "Groq", baseUrl: "https://api.groq.com/openai/v1", model: "llama-3.3-70b-versatile", needsKey: true },
-  { id: "nvidia", name: "NVIDIA NIM", baseUrl: "https://integrate.api.nvidia.com/v1", model: "meta/llama-3.1-8b-instruct", needsKey: true },
+  { id: "nvidia", name: "NVIDIA NIM", baseUrl: "https://integrate.api.nvidia.com/v1", model: "deepseek-ai/deepseek-v4.1-flash", needsKey: true },
   { id: "ollama", name: "Ollama local", baseUrl: "http://localhost:11434/v1", model: "llama3.1", needsKey: false },
   { id: "custom", name: "Custom", baseUrl: "", model: "", needsKey: false },
 ];
@@ -85,7 +85,7 @@ export const DEFAULT_SETTINGS: Settings = {
   providers: [
     { id: "openai", name: "OpenAI", baseUrl: "https://api.openai.com/v1", model: "gpt-4o-mini", apiKey: "", enabled: true, status: "unknown" },
     { id: "openrouter", name: "OpenRouter", baseUrl: "https://openrouter.ai/api/v1", model: "openai/gpt-4o-mini", apiKey: "", enabled: false, status: "unknown" },
-    { id: "nvidia", name: "NVIDIA NIM", baseUrl: "https://integrate.api.nvidia.com/v1", model: "meta/llama-3.1-8b-instruct", apiKey: "", enabled: false, status: "unknown" },
+    { id: "nvidia", name: "NVIDIA NIM", baseUrl: "https://integrate.api.nvidia.com/v1", model: "deepseek-ai/deepseek-v4.1-flash", apiKey: "", enabled: false, status: "unknown" },
     { id: "ollama", name: "Ollama local", baseUrl: "http://localhost:11434/v1", model: "llama3.1", apiKey: "", enabled: false, status: "unknown" },
   ],
   activeProviderId: "openai",

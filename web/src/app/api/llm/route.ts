@@ -18,14 +18,20 @@ function normalizeBase(value: string): string {
 }
 
 function upstreamError(text: string, status: number): string {
+  const head = text.slice(0, 300).toLowerCase();
+  if (head.includes("<!doctype") || head.includes("<html")) {
+    return "El proveedor devolvió una página HTML en vez de la API. Revisá la Base URL (debe terminar en /v1) y la API key.";
+  }
   try {
     const data = JSON.parse(text) as {
       error?: { message?: string } | string;
       message?: string;
+      detail?: string;
     };
     if (typeof data.error === "string") return data.error;
     if (data.error?.message) return data.error.message;
     if (data.message) return data.message;
+    if (typeof data.detail === "string") return data.detail;
   } catch {
     // respuesta no JSON
   }

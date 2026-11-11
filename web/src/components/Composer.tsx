@@ -1,7 +1,7 @@
 "use client";
 
-import { useId, useState } from "react";
-import { Send, Settings2, Square, Sparkles } from "lucide-react";
+import { useState } from "react";
+import { ChevronDown, Send, Settings2, Square, Sparkles } from "lucide-react";
 
 const SUGGESTIONS = [
   "Prepará mi semana y dejá la bandeja en cero",
@@ -31,7 +31,7 @@ export function Composer({
   onOpenSettings: () => void;
 }) {
   const [value, setValue] = useState("");
-  const listId = useId();
+  const [customMode, setCustomMode] = useState(false);
 
   function submit() {
     const prompt = value.trim();
@@ -86,19 +86,61 @@ export function Composer({
               <span className="max-w-[90px] truncate">{providerName}</span>
             </button>
             <span className="h-2 w-px bg-white/10" />
-            <input
-              list={listId}
-              value={model}
-              onChange={(event) => onSetModel(event.target.value)}
-              placeholder="modelo…"
-              aria-label="Modelo del LLM"
-              className="w-[120px] shrink-0 rounded bg-transparent px-1 py-0.5 font-mono text-[9px] text-slate-300 outline-none transition hover:bg-white/5 focus:bg-white/5 sm:w-[170px]"
-            />
-            <datalist id={listId}>
-              {models.map((item) => (
-                <option key={item} value={item} />
-              ))}
-            </datalist>
+            {customMode ? (
+              <input
+                autoFocus
+                value={model}
+                onChange={(event) => onSetModel(event.target.value)}
+                onBlur={() => setCustomMode(false)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === "Escape") {
+                    event.preventDefault();
+                    setCustomMode(false);
+                  }
+                }}
+                placeholder="nombre del modelo…"
+                aria-label="Modelo del LLM (texto libre)"
+                className="w-[130px] shrink-0 rounded bg-white/5 px-1 py-0.5 font-mono text-[9px] text-slate-200 outline-none sm:w-[190px]"
+              />
+            ) : (
+              <div className="relative shrink-0">
+                <select
+                  value={model && !models.includes(model) ? "__custom" : model}
+                  onChange={(event) => {
+                    const selected = event.target.value;
+                    if (selected === "__otro__") {
+                      setCustomMode(true);
+                      onSetModel("");
+                    } else if (selected !== "__custom") {
+                      onSetModel(selected);
+                    }
+                  }}
+                  aria-label="Modelo del LLM"
+                  className={`max-w-[130px] appearance-none truncate rounded bg-transparent py-0.5 pl-1 pr-4 font-mono text-[9px] outline-none transition hover:bg-white/5 sm:max-w-[190px] ${
+                    model ? "text-slate-300" : "text-slate-500"
+                  }`}
+                >
+                  {!model ? (
+                    <option value="" disabled>
+                      modelo…
+                    </option>
+                  ) : null}
+                  {model && !models.includes(model) ? (
+                    <option value="__custom">{model}</option>
+                  ) : null}
+                  {models.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                  <option value="__otro__">otro…</option>
+                </select>
+                <ChevronDown
+                  size={9}
+                  className="pointer-events-none absolute right-0.5 top-1/2 -translate-y-1/2 text-slate-500"
+                />
+              </div>
+            )}
             <span
               className={`rounded px-1 py-0.5 font-mono text-[8px] ${
                 configured

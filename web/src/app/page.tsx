@@ -205,7 +205,7 @@ export default function PulseOS() {
     setRun({ status: "running", units: [], prompt, expected });
     setLlmReply("");
     setLlmError("");
-    pushLog("orquestador", `objetivo recibido · ${expected} units`, "cyan");
+    pushLog("orquestador", `objetivo recibido · ${expected} unidades`, "cyan");
     pushLog("router", `modelo activo · ${configured ? modelName : "demo"}`, "yellow");
 
     if (configured) {
@@ -250,12 +250,12 @@ export default function PulseOS() {
       });
       pushLog(
         "check",
-        `${verified} verified · ${rejected} ${
+        `${verified} verificadas · ${rejected} ${
           rejected === 1 ? "rechazada" : "rechazadas"
         }`,
         rejected > 0 ? "yellow" : "green",
       );
-      pushLog("output", "run complete · verified output", "green");
+      pushLog("output", "run completo · salida verificada", "green");
       const record: RunRecord = {
         id: uid("run"),
         prompt,
