@@ -293,3 +293,11 @@ body {
   stroke-dasharray: 4 216;
   animation: flow-right 2.6s linear infinite;
 }
+
+@keyframes mesh-dash-move {
+  to { stroke-dashoffset: -24; }
+}
+.mesh-flow {
+  stroke-dasharray: 3 9;
+  animation: mesh-dash-move 0.9s linear infinite;
+}

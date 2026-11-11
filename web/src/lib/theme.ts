@@ -83,3 +83,23 @@ export function shortDate(iso: string): string {
 export function uid(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
+
+export const PALETTE: Color[] = [
+  "cyan",
+  "pink",
+  "purple",
+  "green",
+  "orange",
+  "yellow",
+  "blue",
+  "red",
+];
+
+/** Color estable por nombre (para que cada personaje tenga el suyo). */
+export function colorForName(name: string): Color {
+  let h = 0;
+  for (let i = 0; i < name.length; i += 1) {
+    h = (h * 31 + name.charCodeAt(i)) | 0;
+  }
+  return PALETTE[Math.abs(h) % PALETTE.length];
+}

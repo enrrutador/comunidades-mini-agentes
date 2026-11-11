@@ -389,6 +389,10 @@ export function listTareas(comunidadId?: string, estado?: string) {
   return request<Tarea[]>(`/tareas${q}`);
 }
 
+export function reintentarTarea(id: string) {
+  return request<Tarea>(`/tareas/${id}/reintentar`, { method: "POST" });
+}
+
 // ---------------------------------------------------------------------------
 // Memoria
 // ---------------------------------------------------------------------------

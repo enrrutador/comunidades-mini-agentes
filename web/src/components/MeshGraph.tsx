@@ -120,7 +120,7 @@ export function MeshGraph({
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-neon-red" />
           mesh
         </span>
-        <span className="text-slate-400">{online} bots</span>
+        <span className="text-slate-400">{online} en línea</span>
       </div>
 
       <div className="relative min-h-[300px] flex-1 sm:min-h-[380px]">
@@ -157,8 +157,8 @@ export function MeshGraph({
         </svg>
 
         <InputChip label="TAREA" hint="corré mi semana" className="left-[4%] top-[7%]" />
-        <InputChip label="BANDEJA" hint="escaneo de bandeja" className="left-[3%] top-[24%]" />
-        <InputChip label="CALENDARIO" hint="ajustar reglas" className="bottom-[22%] left-[3%]" />
+        <InputChip label="BANDEJA" hint="comentarios entrantes" className="left-[3%] top-[24%]" />
+        <InputChip label="CALENDARIO" hint="rondas programadas" className="bottom-[22%] left-[3%]" />
         <InputChip label="MEMORY_MD" hint="memory.md" className="bottom-[7%] left-[6%]" />
         <InputChip label="FACEBOOK" hint="posts · comentarios" className="bottom-[10%] right-[4%]" />
 
@@ -191,17 +191,17 @@ export function MeshGraph({
           color="yellow"
           badge="check"
           toggleLabel="Finalizado"
-          desc="Condición de pase del escritor"
+          desc="El autor es la Página, siempre"
           chips={
             <>
-              <span>lista: núcleos · sin auto-pago</span>
+              <span>identidad confirmada antes de salir</span>
               <span className="mt-1 flex items-center gap-1">
                 <Chip>MEMORY.md</Chip>
               </span>
-              <span className="text-slate-500">• Repartidor → 15 bots</span>
+              <span className="text-slate-500">• si no se confirma, no sale</span>
             </>
           }
-          footer="Repartidor"
+          footer="Verificación"
           action="→ Conectar"
           className="right-[2%] top-[12%]"
         />
@@ -213,10 +213,9 @@ export function MeshGraph({
           desc="Corta la tarea en unidades"
           chips={
             <>
-              <span>• objetivo → solo datos</span>
-              <span>• → → en paralelo</span>
-              <span className="pt-1 text-slate-500">Grafo de tareas</span>
-              <span>• 15 unidades</span>
+              <span>• subconjunto desprolijo</span>
+              <span>• delays irregulares · tardíos</span>
+              <span>• una tarea por acción</span>
             </>
           }
           footer="Grafo de tareas"

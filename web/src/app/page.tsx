@@ -13,10 +13,10 @@ import { BotConfigModal, unitCode } from "@/components/BotCard";
 import { CharacterConfigModal } from "@/components/CharacterCard";
 import { useStored } from "@/lib/useStored";
 import { activeProvider, callLLM, llmConfigured, testProvider } from "@/lib/llm";
-import { listPersonajes, createPersonaje, updatePersonaje, loginAdmin, logoutAdmin, isAuthenticated, getMe } from "@/lib/api";
+import { listPersonajes, listTareas, createPersonaje, updatePersonaje, loginAdmin, logoutAdmin, isAuthenticated, getMe } from "@/lib/api";
 import type { AuthUser } from "@/lib/api";
 import type { Comunidad as ApiComunidad, Personaje as ApiPersonaje } from "@/lib/api";
-import { timeNow, uid } from "@/lib/theme";
+import { timeNow, uid, colorForName } from "@/lib/theme";
 import {
   ALL_BOTS,
   CHARACTERS,
@@ -100,6 +100,11 @@ export default function PulseOS() {
   ]);
 
   const [logs, setLogs] = useState<LogEntry[]>(initialLogs);
+  const [meshStats, setMeshStats] = useState<{
+    unidades: number;
+    verificadas: number;
+    fallidas: number;
+  } | null>(null);
   const [run, setRun] = useState<RunState>({
     status: "idle",
     units: [],
@@ -150,7 +155,7 @@ export default function PulseOS() {
           id: p.id,
           name: p.nombre,
           communityId: p.comunidad_id,
-          color: "cyan" as Color,
+          color: colorForName(p.nombre),
           estado: (p.estado === "activo" ? "activo" : p.estado === "inactivo" ? "inactivo" : "en_preparacion") as Character["estado"],
           actividad: p.nivel_actividad ?? 5,
           bio: p.biografia_interna ?? "",
@@ -165,6 +170,35 @@ export default function PulseOS() {
     return () => { cancelled = true; };
   }, [mounted]);
 
+  // Estadísticas reales del mesh (tareas de Facebook del backend)
+  useEffect(() => {
+    if (!mounted) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const tareas = await listTareas();
+        if (cancelled) return;
+        const fb = tareas.filter((t) => t.tipo.startsWith("fb_"));
+        setMeshStats({
+          unidades: fb.length,
+          verificadas: fb.filter(
+            (t) =>
+              t.estado === "completada" &&
+              (t.resultado as Record<string, unknown> | null)?.verificado === true,
+          ).length,
+          fallidas: fb.filter((t) => t.estado === "fallida").length,
+        });
+      } catch {
+        // Sin backend: el header usa las stats de la corrida local
+      }
+    };
+    void tick();
+    const id = setInterval(tick, 4000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [mounted]);
   function addLog(source: string, message: string, color?: Color) {
     const entry: LogEntry = {
       id: uid("log"),
@@ -537,10 +571,12 @@ export default function PulseOS() {
         onTab={setActiveTab}
         onRefresh={refreshMesh}
         stats={{
-          online: bots.filter((bot) => bot.enabled).length,
-          units: run.units.length,
-          verified,
-          rejected,
+          online: meshStats
+            ? characters.filter((c) => c.estado === "activo").length
+            : bots.filter((bot) => bot.enabled).length,
+          units: meshStats ? meshStats.unidades : run.units.length,
+          verified: meshStats ? meshStats.verificadas : verified,
+          rejected: meshStats ? meshStats.fallidas : rejected,
           rules: rules.filter((rule) => rule.active).length,
         }}
         configured={configured}
