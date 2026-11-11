@@ -33,6 +33,17 @@ export const dot: Record<Color, string> = {
   red: "bg-neon-red",
 };
 
+export const bgSoft: Record<Color, string> = {
+  cyan: "bg-neon-cyan/15",
+  pink: "bg-neon-pink/15",
+  purple: "bg-neon-purple/15",
+  green: "bg-neon-green/15",
+  orange: "bg-neon-orange/15",
+  yellow: "bg-neon-yellow/15",
+  blue: "bg-neon-blue/15",
+  red: "bg-neon-red/15",
+};
+
 export const line: Record<Color, string> = {
   cyan: "#00f0ff",
   pink: "#ff00aa",

@@ -9,7 +9,7 @@ import { RulesView } from "@/components/RulesView";
 import { MemoryView } from "@/components/MemoryView";
 import { CommunityView } from "@/components/CommunityView";
 import { SettingsModal } from "@/components/SettingsModal";
-import { BotConfigModal } from "@/components/BotCard";
+import { BotConfigModal, unitCode } from "@/components/BotCard";
 import { CharacterConfigModal } from "@/components/CharacterCard";
 import { useStored } from "@/lib/useStored";
 import { activeProvider, callLLM, llmConfigured } from "@/lib/llm";
@@ -286,7 +286,7 @@ export default function PulseOS() {
       const unit: Unit = {
         id: String(index + 1).padStart(2, "0"),
         botId: bot.id,
-        label: bot.name,
+        label: unitCode(bot, index),
         status: "running",
       };
       collected.push(unit);

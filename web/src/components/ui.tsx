@@ -43,10 +43,12 @@ export function Toggle({
   checked,
   onChange,
   label,
+  compact = false,
 }: {
   checked: boolean;
   onChange: (value: boolean) => void;
   label?: string;
+  compact?: boolean;
 }) {
   return (
     <button
@@ -55,16 +57,20 @@ export function Toggle({
       aria-checked={checked}
       aria-label={label}
       onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition ${
+      className={`relative inline-flex shrink-0 items-center rounded-full border transition ${
+        compact ? "h-3.5 w-6 px-0.5" : "h-5 w-9 px-0.5"
+      } ${
         checked
           ? "border-neon-cyan/50 bg-neon-cyan/20"
           : "border-white/10 bg-white/5"
       }`}
     >
       <span
-        className={`inline-block h-3.5 w-3.5 rounded-full transition ${
+        className={`inline-block rounded-full transition ${
+          compact ? "h-2 w-2" : "h-3.5 w-3.5"
+        } ${
           checked
-            ? "translate-x-4 bg-neon-cyan shadow-[0_0_8px_#00f0ff]"
+            ? `${compact ? "translate-x-2" : "translate-x-4"} bg-neon-cyan shadow-[0_0_8px_#00f0ff]`
             : "translate-x-0.5 bg-slate-500"
         }`}
       />

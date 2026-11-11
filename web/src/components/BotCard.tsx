@@ -1,12 +1,59 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Link2, Settings2 } from "lucide-react";
-import { Chip, Field, Modal, StatusDot, Toggle } from "./ui";
-import { glow, text } from "@/lib/theme";
+import { Check, ChevronRight, Link2, Settings2 } from "lucide-react";
+import { Chip, Field, Modal, Toggle } from "./ui";
+import { bgSoft, glow, text } from "@/lib/theme";
 import type { Bot, UnitStatus } from "@/lib/types";
 
 export type BotLiveState = "idle" | UnitStatus;
+
+const UNIT_VERBS = ["run", "sort", "write", "send", "scan", "check", "reply", "book", "draft", "log", "review", "plan", "flag", "queue", "sync"];
+
+export function unitCode(bot: Bot, index: number): string {
+  const first = bot.name.toLowerCase().split(/[\s&-]+/)[0] ?? bot.name.toLowerCase();
+  return `${first}_${UNIT_VERBS[index % UNIT_VERBS.length]}`;
+}
+
+function statusOf(liveState: BotLiveState, enabled: boolean) {
+  if (liveState === "running") return { label: "Running", color: "cyan" as const, pulse: true };
+  if (liveState === "verified") return { label: "Verified", color: "green" as const, pulse: false };
+  if (liveState === "rejected") return { label: "Rejected", color: "red" as const, pulse: false };
+  if (enabled) return { label: "Enabled", color: "green" as const, pulse: false };
+  return { label: "Paused", color: "yellow" as const, pulse: false };
+}
+
+export function BotPill({
+  bot,
+  liveState = "idle",
+  active = false,
+}: {
+  bot: Bot;
+  liveState?: BotLiveState;
+  active?: boolean;
+}) {
+  const status = statusOf(liveState, bot.enabled);
+  return (
+    <div
+      className={`animate-pill flex shrink-0 items-center gap-2 overflow-hidden whitespace-nowrap rounded-full border px-2 py-1.5 ${glow[bot.color]} ${
+        liveState === "running" ? "animate-pulse" : ""
+      } ${bot.enabled ? "" : "opacity-50"} ${active ? "ring-1 ring-white/40" : ""}`}
+    >
+      <span
+        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded ${text[bot.color]} ${bgSoft[bot.color]} font-mono text-[7px] font-bold`}
+      >
+        {bot.tag}
+      </span>
+      <span className="min-w-0 truncate text-[11px] font-medium text-slate-100">
+        {bot.name}
+      </span>
+      <span className={`shrink-0 font-mono text-[8px] ${text[status.color]}`}>
+        {status.label === "Running" ? "···" : liveState === "verified" ? "ok" : ""}
+      </span>
+      <ChevronRight size={11} className="shrink-0 text-slate-500" />
+    </div>
+  );
+}
 
 export function BotCard({
   bot,
@@ -21,52 +68,70 @@ export function BotCard({
   onConfigure: (bot: Bot) => void;
   onConnect: (bot: Bot) => void;
 }) {
-  const status = (() => {
-    if (liveState === "running") return { label: "Running", color: "cyan" as const, pulse: true };
-    if (liveState === "verified") return { label: "Verified", color: "green" as const, pulse: false };
-    if (liveState === "rejected") return { label: "Rejected", color: "red" as const, pulse: false };
-    if (bot.enabled) return { label: "Enabled", color: "green" as const, pulse: false };
-    return { label: "Paused", color: "yellow" as const, pulse: false };
-  })();
+  const status = statusOf(liveState, bot.enabled);
+  const tools = bot.tools
+    .split(/[,/]/)
+    .map((tool) => tool.trim())
+    .filter(Boolean)
+    .slice(0, 3);
 
   return (
     <article
-      className={`neon-card ${glow[bot.color]} group flex min-h-[178px] flex-col p-3 transition ${
+      className={`neon-card ${glow[bot.color]} group flex min-h-[190px] flex-col p-2.5 transition ${
         bot.enabled ? "" : "opacity-55"
-      } ${active ? "ring-1 ring-neon-cyan/50" : ""}`}
+      } ${active ? "ring-1 ring-white/40" : ""}`}
     >
-      {active ? (
-        <span className="pointer-events-none absolute inset-0 animate-pulse rounded-[10px] ring-1 ring-neon-cyan/40" />
+      {liveState === "running" ? (
+        <span className="pointer-events-none absolute inset-0 animate-pulse rounded-[10px] ring-1 ring-white/25" />
       ) : null}
+
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <span
-            className={`rounded px-1.5 py-0.5 font-mono text-[9px] font-bold ${text[bot.color]} bg-white/5`}
-          >
-            {bot.tag}
-          </span>
-          <h3 className="truncate text-[13px] font-medium text-slate-100">
+          <h3 className="truncate text-[12px] font-medium text-slate-100">
             {bot.name}
           </h3>
         </div>
-        <div className="flex shrink-0 items-center gap-1 font-mono text-[9px]">
-          <StatusDot color={status.color} pulse={status.pulse} />
+        <span
+          className={`flex h-4.5 min-w-[22px] shrink-0 items-center justify-center rounded px-1 py-0.5 font-mono text-[8px] font-bold ${text[bot.color]} ${bgSoft[bot.color]} border border-current/30`}
+        >
+          {bot.tag}
+        </span>
+      </div>
+
+      <div className="mt-1.5 flex items-center gap-1.5">
+        <Toggle
+          checked={bot.enabled}
+          onChange={() => onConfigure(bot)}
+          label=""
+          compact
+        />
+        <span className="flex items-center gap-1 font-mono text-[8px]">
+          <span
+            className={`h-1 w-1 rounded-full ${
+              status.pulse ? "animate-pulse" : ""
+            } ${status.color === "green" ? "bg-neon-green" : status.color === "cyan" ? "bg-neon-cyan" : status.color === "red" ? "bg-neon-red" : "bg-neon-yellow"}`}
+          />
           <span className={text[status.color]}>{status.label}</span>
-        </div>
+        </span>
       </div>
 
-      <p className="mt-1 font-mono text-[10px] text-slate-500">{bot.tools}</p>
-      <p className="mt-2 line-clamp-2 text-[11px] leading-snug text-slate-400">
-        {bot.desc}
-      </p>
-
-      <div className="mt-2.5 flex flex-wrap gap-1.5">
-        <Chip>run context</Chip>
-        <Chip>loop · max {bot.maxLoops}</Chip>
-        <Chip>{bot.autoVerify ? "check pass cond." : "sin check"}</Chip>
+      <div className="mt-2 flex flex-wrap gap-1">
+        {tools.map((tool) => (
+          <Chip key={tool}>{tool}</Chip>
+        ))}
       </div>
 
-      <div className="mt-auto flex items-center justify-between gap-2 pt-3">
+      <div className="mt-1.5 flex flex-wrap gap-1">
+        <Chip>MEMORY.md</Chip>
+      </div>
+
+      <div className="mt-2 space-y-0.5 font-mono text-[8px] text-slate-500">
+        <span className="block">• own context</span>
+        <span className="block">• loop: max {bot.maxLoops}</span>
+        <span className="block">• check: {bot.autoVerify ? "pass cond." : "manual"}</span>
+      </div>
+
+      <div className="mt-auto flex items-center justify-between gap-2 pt-2.5">
         <button
           type="button"
           onClick={() => onConnect(bot)}
@@ -77,7 +142,7 @@ export function BotCard({
           }`}
         >
           {bot.connected ? <Check size={10} /> : <Link2 size={10} />}
-          {bot.connected ? "Conectado" : "Conectar"}
+          {bot.connected ? "Connect" : "→ Connect"}
         </button>
         <button
           type="button"

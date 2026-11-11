@@ -237,3 +237,59 @@ body {
   transform-origin: bottom;
   animation: bar-grow 500ms ease-out both;
 }
+
+@keyframes orb-glow {
+  0%, 100% {
+    box-shadow: 0 0 22px rgba(255, 255, 255, 0.28), 0 0 60px rgba(255, 255, 255, 0.1);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(255, 255, 255, 0.5), 0 0 90px rgba(255, 255, 255, 0.18);
+    transform: scale(1.03);
+  }
+}
+.animate-orb {
+  animation: orb-glow 3.2s ease-in-out infinite;
+}
+
+@keyframes chip-in {
+  from { opacity: 0; transform: translateY(-10px) scale(0.85); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-chip-in {
+  animation: chip-in 220ms ease-out both;
+}
+
+@keyframes pill-pop {
+  0% { opacity: 0; transform: translateX(-14px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+.animate-pill {
+  animation: pill-pop 240ms ease-out both;
+}
+
+@keyframes check-burst {
+  0% { box-shadow: 0 0 0 0 rgba(0, 255, 157, 0.55), 0 0 18px rgba(0, 255, 157, 0.4); }
+  70% { box-shadow: 0 0 0 18px rgba(0, 255, 157, 0), 0 0 30px rgba(0, 255, 157, 0.5); }
+  100% { box-shadow: 0 0 0 0 rgba(0, 255, 157, 0), 0 0 18px rgba(0, 255, 157, 0.4); }
+}
+.animate-check-burst {
+  animation: check-burst 1.4s ease-out infinite;
+}
+
+@keyframes ticker {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.animate-ticker {
+  animation: ticker 22s linear infinite;
+}
+
+@keyframes flow-right {
+  from { stroke-dashoffset: 220; }
+  to { stroke-dashoffset: 0; }
+}
+.animate-flow {
+  stroke-dasharray: 4 216;
+  animation: flow-right 2.6s linear infinite;
+}

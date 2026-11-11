@@ -1,79 +1,98 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { Check, GitBranch, ShieldCheck } from "lucide-react";
+import { ChevronDown, GitBranch, ShieldCheck } from "lucide-react";
 import { Chip, StatusDot } from "./ui";
-import { dot, text } from "@/lib/theme";
+import { text } from "@/lib/theme";
 import type { Color } from "@/lib/types";
 
-function GraphNode({
+const PATHS = [
+  { d: "M60 48 C95 60 118 130 138 218", dur: "2.6s" },
+  { d: "M55 138 C92 150 120 190 138 222", dur: "3.1s" },
+  { d: "M58 392 C100 380 124 320 138 286", dur: "2.8s" },
+  { d: "M62 462 C105 440 128 350 140 292", dur: "3.4s" },
+];
+
+function InputChip({
   label,
   hint,
-  color,
   className,
 }: {
   label: string;
   hint: string;
-  color: Color;
   className: string;
 }) {
   return (
     <div className={`absolute z-10 ${className}`}>
-      <div className="flex items-center gap-1 rounded border border-white/10 bg-[#0b0b14]/85 px-1.5 py-0.5 backdrop-blur">
-        <span className={`h-1 w-1 rounded-full ${dot[color]}`} />
-        <span className="font-mono text-[8px] tracking-widest text-slate-300">
-          {label}
-        </span>
+      <div className="rounded border border-white/25 bg-[#0b0b13]/90 px-1.5 py-0.5 font-mono text-[8px] tracking-widest text-slate-100 shadow-[0_0_10px_rgba(255,255,255,0.12)] backdrop-blur">
+        {label}
       </div>
-      <div className="mt-0.5 text-[8px] text-slate-600">{hint}</div>
+      <div className="mt-0.5 font-mono text-[8px] text-slate-500">{hint}</div>
     </div>
   );
 }
 
-function DetailCard({
+function LineLabel({ text: label, className }: { text: string; className: string }) {
+  return (
+    <span
+      className={`absolute z-10 rounded bg-[#0a0a12]/80 px-1 font-mono text-[8px] text-slate-400 backdrop-blur ${className}`}
+    >
+      {label}
+    </span>
+  );
+}
+
+function SpecialCard({
   title,
   color,
-  icon,
+  badge,
+  toggleLabel,
   desc,
   chips,
+  footer,
+  action,
   className,
 }: {
   title: string;
   color: Color;
-  icon: ReactNode;
+  badge: "check" | "split";
+  toggleLabel: string;
   desc: string;
-  chips: string[];
+  chips: React.ReactNode;
+  footer: string;
+  action: string;
   className: string;
 }) {
   return (
     <div
-      className={`glow-${color} absolute z-10 hidden w-[47%] max-w-[188px] flex-col rounded-lg border bg-[#0a0a13]/95 p-2.5 sm:flex ${className}`}
+      className={`neon-card glow-${color} absolute z-10 hidden w-[52%] max-w-[190px] p-2.5 sm:flex sm:flex-col ${className}`}
     >
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5">
-          <span
-            className={`flex h-5 w-5 items-center justify-center rounded ${text[color]} bg-white/5`}
-          >
-            {icon}
+      <div className="flex items-start justify-between gap-1.5">
+        <span className={`text-[12px] font-medium ${text[color]}`}>{title}</span>
+        {badge === "check" ? (
+          <span className="flex h-5 w-5 items-center justify-center rounded-full border border-neon-yellow/50 bg-neon-yellow/10 text-neon-yellow shadow-[0_0_10px_rgba(255,238,0,0.35)]">
+            <ShieldCheck size={11} />
           </span>
-          <span className={`text-[11px] font-medium ${text[color]}`}>{title}</span>
-        </div>
-        <span className="rounded bg-white/5 px-1 py-0.5 font-mono text-[7px] text-slate-400">
-          {color === "yellow" ? "PASS" : "SPLIT"}
+        ) : (
+          <span className="flex h-5 w-6 items-center justify-center rounded-md border border-white/20 bg-white/5 text-slate-300">
+            <ChevronDown size={11} />
+          </span>
+        )}
+      </div>
+      <div className="mt-1.5 flex items-center gap-1.5">
+        <span className="relative inline-flex h-3 w-6 items-center rounded-full bg-neon-green/25 px-0.5">
+          <span className="ml-auto h-2 w-2 rounded-full bg-neon-green shadow-[0_0_6px_rgba(0,255,157,0.8)]" />
+        </span>
+        <span className="flex items-center gap-1 font-mono text-[8px] text-neon-green">
+          <StatusDot color="green" /> {toggleLabel}
         </span>
       </div>
-      <div className="mt-1.5 flex items-center gap-1 font-mono text-[8px] text-neon-green">
-        <StatusDot color="green" /> Enabled
-      </div>
-      <p className="mt-1.5 text-[9px] leading-snug text-slate-400">{desc}</p>
-      <div className="mt-1.5 flex flex-wrap gap-1">
-        {chips.map((chip) => (
-          <Chip key={chip}>{chip}</Chip>
-        ))}
+      <p className="mt-1.5 text-[10px] leading-snug text-slate-200">{desc}</p>
+      <div className="mt-1.5 space-y-0.5 font-mono text-[8px] text-slate-400">
+        {chips}
       </div>
       <div className="mt-2 flex items-center justify-between border-t border-white/5 pt-1.5">
-        <span className="font-mono text-[8px] text-slate-500">Connect</span>
-        <span className={`font-mono text-[8px] ${text[color]}`}>→</span>
+        <span className="font-mono text-[8px] text-slate-500">{footer}</span>
+        <span className={`font-mono text-[8px] ${text[color]}`}>{action}</span>
       </div>
     </div>
   );
@@ -83,7 +102,6 @@ export function MeshGraph({
   online,
   characters,
   running,
-  activeColor = "cyan",
   className = "",
 }: {
   online: number;
@@ -94,18 +112,18 @@ export function MeshGraph({
 }) {
   return (
     <section
-      className={`flex shrink-0 flex-col overflow-hidden border-b border-[#1a1a2e] bg-[#06060c] xl:h-full xl:w-[310px] xl:border-b-0 xl:border-r 2xl:w-[350px] ${className}`}
+      className={`flex shrink-0 flex-col overflow-hidden border-b border-[#1a1a2e] bg-[#05050a] xl:h-full xl:w-[340px] xl:border-b-0 xl:border-r 2xl:w-[380px] ${className}`}
     >
-      <div className="flex items-center justify-between gap-2 px-3 py-2.5 font-mono text-[9px] text-slate-500">
+      <div className="flex items-center justify-between gap-2 px-3 py-2 font-mono text-[9px] text-slate-500">
         <span className="flex items-center gap-1.5">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-neon-green" />
-          mesh / live
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-neon-red" />
+          mesh
         </span>
-        <span className="text-neon-cyan/70">{online} bots</span>
+        <span className="text-slate-400">{online} bots</span>
       </div>
 
-      <div className="relative min-h-[260px] flex-1 sm:min-h-[360px]">
-        <div className="mesh-grid absolute inset-0 opacity-25" />
+      <div className="relative min-h-[300px] flex-1 sm:min-h-[380px]">
+        <div className="mesh-grid absolute inset-0 opacity-[0.16]" />
 
         <svg
           className="absolute inset-0 h-full w-full"
@@ -113,117 +131,103 @@ export function MeshGraph({
           preserveAspectRatio="none"
           aria-hidden
         >
-          <defs>
-            <linearGradient id="beam-cyan" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#00f0ff" stopOpacity="0.05" />
-              <stop offset="55%" stopColor="#00f0ff" stopOpacity="0.55" />
-              <stop offset="100%" stopColor="#00f0ff" stopOpacity="0.05" />
-            </linearGradient>
-            <linearGradient id="beam-purple" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#b400ff" stopOpacity="0.05" />
-              <stop offset="55%" stopColor="#b400ff" stopOpacity="0.55" />
-              <stop offset="100%" stopColor="#b400ff" stopOpacity="0.05" />
-            </linearGradient>
-            <linearGradient id="beam-green" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#00ff9d" stopOpacity="0.05" />
-              <stop offset="55%" stopColor="#00ff9d" stopOpacity="0.5" />
-              <stop offset="100%" stopColor="#00ff9d" stopOpacity="0.05" />
-            </linearGradient>
-            <linearGradient id="beam-pink" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#ff00aa" stopOpacity="0.05" />
-              <stop offset="55%" stopColor="#ff00aa" stopOpacity="0.5" />
-              <stop offset="100%" stopColor="#ff00aa" stopOpacity="0.05" />
-            </linearGradient>
-            <linearGradient id="beam-orange" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#ff6b00" stopOpacity="0.05" />
-              <stop offset="55%" stopColor="#ff6b00" stopOpacity="0.5" />
-              <stop offset="100%" stopColor="#ff6b00" stopOpacity="0.05" />
-            </linearGradient>
-          </defs>
-
-          <g
-            fill="none"
-            strokeWidth="1.2"
-            strokeDasharray="3 6"
-            className="animate-dash"
-            vectorEffect="non-scaling-stroke"
-          >
-            <path d="M122 244 C110 200 70 110 35 70" stroke="url(#beam-purple)" />
-            <path d="M122 244 C95 215 55 180 25 160" stroke="url(#beam-cyan)" />
-            <path d="M122 244 C95 285 55 350 30 380" stroke="url(#beam-orange)" />
-            <path d="M122 244 C110 320 70 430 40 470" stroke="url(#beam-green)" />
-            <path d="M122 244 C165 205 195 170 222 152" stroke="url(#beam-pink)" />
-            <path d="M122 244 C165 285 195 330 222 356" stroke="url(#beam-purple)" />
-            <path d="M122 244 C190 215 260 180 318 145" stroke="url(#beam-cyan)" opacity="0.6" />
-            <path d="M122 244 C195 240 260 235 318 235" stroke="url(#beam-green)" opacity="0.5" />
-            <path d="M122 244 C190 270 260 300 318 330" stroke="url(#beam-pink)" opacity="0.5" />
-            <path d="M122 244 C185 300 255 370 318 430" stroke="url(#beam-orange)" opacity="0.45" />
+          <g fill="none" stroke="#e6e6f0" strokeOpacity="0.28" strokeWidth="1" vectorEffect="non-scaling-stroke">
+            {PATHS.map((path) => (
+              <path key={path.d} d={path.d} />
+            ))}
           </g>
-
-          <g fill="#0a0a12" stroke="#2a2a44" strokeWidth="1">
-            <circle cx="35" cy="70" r="2.5" />
-            <circle cx="25" cy="160" r="2.5" />
-            <circle cx="30" cy="380" r="2.5" />
-            <circle cx="40" cy="470" r="2.5" />
-            <circle cx="318" cy="145" r="2.5" />
-            <circle cx="318" cy="235" r="2.5" />
-            <circle cx="318" cy="330" r="2.5" />
-            <circle cx="318" cy="430" r="2.5" />
+          <g fill="#f4f4ff">
+            {PATHS.map((path) => (
+              <circle key={`p1-${path.d}`} r="1.7" opacity="0.95">
+                <animateMotion dur={path.dur} repeatCount="indefinite" path={path.d} />
+              </circle>
+            ))}
+            {PATHS.map((path) => (
+              <circle key={`p2-${path.d}`} r="1.2" opacity="0.55">
+                <animateMotion
+                  dur={path.dur}
+                  begin="1.3s"
+                  repeatCount="indefinite"
+                  path={path.d}
+                />
+              </circle>
+            ))}
           </g>
         </svg>
 
-        <GraphNode label="TASK" hint="run my week" color="purple" className="left-[5%] top-[9%]" />
-        <GraphNode label="INBOX" hint="fetch receipts" color="cyan" className="left-[2%] top-[26%]" />
-        <GraphNode label="CALENDAR" hint="special plans" color="orange" className="bottom-[20%] left-[2%]" />
-        <GraphNode label="MEMORY.MD" hint="running now" color="green" className="bottom-[7%] left-[6%]" />
+        <InputChip label="TASK" hint="run my week" className="left-[4%] top-[7%]" />
+        <InputChip label="INBOX" hint="inbox scan" className="left-[3%] top-[24%]" />
+        <InputChip label="CALENDAR" hint="tune rules" className="bottom-[22%] left-[3%]" />
+        <InputChip label="MEMORY_MD" hint="memory.md" className="bottom-[7%] left-[6%]" />
 
-        <div className="absolute left-[38%] top-[47%] z-10 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center">
+        <LineLabel text="plan.md" className="left-[26%] top-[13%]" />
+        <LineLabel text="run my week" className="left-[30%] top-[19%]" />
+        <LineLabel text="inbox scan" className="left-[27%] top-[30%]" />
+        <LineLabel text="tune rules" className="left-[24%] bottom-[26%]" />
+
+        <div className="absolute left-[46%] top-[49%] z-10 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center">
           <div
-            className={`relative flex h-16 w-16 items-center justify-center rounded-[22px] border border-neon-cyan/40 bg-gradient-to-br from-[#0c1020] to-[#050508] shadow-[0_0_30px_rgba(0,240,255,0.22)] sm:h-20 sm:w-20 ${
-              running ? "animate-soft-pulse" : ""
-            }`}
+            className={`animate-orb relative flex h-16 w-16 items-center justify-center rounded-[24px] bg-gradient-to-b from-white to-[#c9c9d6] sm:h-20 sm:w-20`}
           >
-            <div className="absolute -inset-2 rounded-[26px] border border-neon-cyan/15" />
-            <div
-              className={`flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-neon-cyan to-neon-purple text-sm font-bold text-black shadow-neon-cyan sm:h-11 sm:w-11`}
-            >
-              P
+            <div className="absolute -inset-2.5 rounded-[30px] border border-white/10" />
+            <div className="flex gap-1.5">
+              <span className="h-3.5 w-2 rounded-full bg-[#101018] sm:h-4 sm:w-2.5" />
+              <span className="h-3.5 w-2 rounded-full bg-[#101018] sm:h-4 sm:w-2.5" />
             </div>
           </div>
-          <div className="mt-2 text-center">
-            <div className="font-mono text-[8px] tracking-[0.2em] text-slate-400">
-              PULSE BOT
-            </div>
-            <div className={`font-mono text-[8px] ${text[activeColor]}`}>
-              {running ? "orquestando…" : "idle · listo"}
-            </div>
+          <div className="mt-2 rounded border border-white/15 bg-[#0b0b13]/90 px-1.5 py-0.5 font-mono text-[8px] tracking-widest text-slate-200 backdrop-blur">
+            PULSE BOT
+          </div>
+          <div className={`mt-0.5 font-mono text-[8px] ${running ? "text-neon-cyan" : "text-slate-600"}`}>
+            {running ? "orquestando…" : "idle"}
           </div>
         </div>
 
-        <DetailCard
+        <SpecialCard
           title="Check"
           color="yellow"
-          icon={<ShieldCheck size={11} />}
-          desc="Valida condiciones de aprobación antes de publicar."
-          chips={["pass cond.", "no auto-pay"]}
-          className="right-[4%] top-[15%]"
+          badge="check"
+          toggleLabel="Finished"
+          desc="Writer pass condition"
+          chips={
+            <>
+              <span>list: cores · no auto-pay</span>
+              <span className="mt-1 flex items-center gap-1">
+                <Chip>MEMORY.md</Chip>
+              </span>
+              <span className="text-slate-500">• Splitter → 15 bots</span>
+            </>
+          }
+          footer="Splitter"
+          action="→ Connect"
+          className="right-[2%] top-[12%]"
         />
-        <DetailCard
+        <SpecialCard
           title="Splitter"
-          color="purple"
-          icon={<GitBranch size={11} />}
-          desc="Divide la tarea en unidades para el task graph."
-          chips={["unit graph", "15 bots"]}
-          className="right-[4%] bottom-[17%]"
+          color="blue"
+          badge="split"
+          toggleLabel="Finished"
+          desc="Cuts task into units"
+          chips={
+            <>
+              <span>• target → data only</span>
+              <span>• → → in parallel</span>
+              <span className="pt-1 text-slate-500">Task graph</span>
+              <span>• 15 units</span>
+            </>
+          }
+          footer="Task graph"
+          action="→ Connect"
+          className="right-[2%] bottom-[16%]"
         />
       </div>
 
       <div className="flex items-center justify-between gap-2 border-t border-white/[0.04] px-3 py-2 font-mono text-[8px] text-slate-600">
         <span className="flex items-center gap-1">
-          <Check size={9} className="text-neon-green" /> verified output
+          <GitBranch size={9} className="text-neon-purple" /> task graph
         </span>
         <span>{characters} personajes</span>
-        <span className="text-neon-cyan/60">beams · 10</span>
+        <span className="text-neon-cyan/60">live · beams</span>
       </div>
     </section>
   );
