@@ -276,6 +276,147 @@ class FacebookBrowserConnector:
             logger.error(f"Error al leer posts: {e}")
             return posts
 
+    async def crear_pagina(self, nombre: str, categoria: str = "Comunidad") -> dict:
+        """Crear una Página de Facebook nueva y devolver su URL/id."""
+        from app.services.browser.selectors import SELECTORS as S
+
+        if not self._page:
+            await self.start()
+
+        try:
+            await self._page.goto(
+                "https://www.facebook.com/pages/creation/", wait_until="domcontentloaded", timeout=20000
+            )
+            await self._human_delay(3, 5)
+
+            # Facebook muestra a veces un modal de "crear página" en la home.
+            # Intentamos llenar el nombre.
+            name_input = await self._page.query_selector(S["page_create_name"])
+            if not name_input:
+                # Fallback: buscar cualquier input de texto visible
+                inputs = await self._page.query_selector_all("input[type='text']")
+                if inputs:
+                    name_input = inputs[0]
+            if not name_input:
+                return {"status": "error", "error": "No se encontró el campo de nombre de página"}
+
+            await name_input.click()
+            await self._page.keyboard.type(nombre, delay=random.randint(40, 90))
+            await self._human_delay(1, 2)
+
+            # Categoría
+            cat_input = await self._page.query_selector(S["page_create_category"])
+            if cat_input:
+                await cat_input.click()
+                await self._page.keyboard.type(categoria, delay=random.randint(40, 90))
+                await self._human_delay(1.5, 2.5)
+                # seleccionar primera sugerencia
+                try:
+                    await self._page.keyboard.press("ArrowDown")
+                    await asyncio.sleep(0.3)
+                    await self._page.keyboard.press("Enter")
+                except Exception:
+                    pass
+                await self._human_delay(1, 2)
+
+            # Botón crear
+            submit = await self._page.query_selector(S["page_create_submit"])
+            if not submit:
+                # fallback por texto
+                submit = await self._page.query_selector("button[type='submit']")
+            if not submit:
+                return {"status": "error", "error": "No se encontró el botón Crear página"}
+            await submit.click()
+            await self._human_delay(5, 8)
+
+            # Saltar pasos opcionales (foto de perfil/portada)
+            for _ in range(4):
+                skip = await self._page.query_selector(S["page_create_skip"])
+                if skip:
+                    await skip.click()
+                    await self._human_delay(2, 3)
+                else:
+                    break
+
+            url = self._page.url
+            # Extraer id de página desde la URL si es posible
+            page_id = None
+            if "/pages/" in url:
+                parts = url.split("/pages/")[-1].split("/")
+                if parts and parts[0].isdigit():
+                    page_id = parts[0]
+            # fallback: buscar en cookies/storage
+            if not page_id:
+                page_id = url.rstrip("/").split("/")[-1]
+
+            logger.info("Página creada: %s (%s)", nombre, url)
+            return {
+                "status": "creada",
+                "nombre": nombre,
+                "url": url,
+                "id_plataforma": page_id,
+            }
+        except Exception as e:
+            logger.error("Error al crear página '%s': %s", nombre, e)
+            return {"status": "error", "error": str(e)}
+
+    async def listar_paginas_administradas(self) -> list[dict]:
+        """Listar las Páginas que la cuenta administra (scraping)."""
+        from app.services.browser.selectors import SELECTORS as S
+
+        if not self._page:
+            await self.start()
+
+        paginas: list[dict] = []
+        try:
+            # Intento 1: sección "Tus páginas"
+            await self._page.goto(
+                "https://www.facebook.com/pages/?tab=your_pages", wait_until="domcontentloaded", timeout=20000
+            )
+            await self._human_delay(3, 5)
+
+            # Buscar links a páginas
+            links = await self._page.query_selector_all("a[href*='/pages/'], a[href*='facebook.com/']")
+            seen: set[str] = set()
+            for link in links:
+                try:
+                    href = await link.get_attribute("href") or ""
+                    text = (await link.inner_text()).strip()
+                    if not text or len(text) < 2 or len(text) > 80:
+                        continue
+                    # Filtrar links que parecen páginas (no posts/perfiles)
+                    if "/pages/" in href:
+                        slug = href.split("/pages/")[-1].split("/")[0].split("?")[0]
+                        if slug and slug not in seen:
+                            seen.add(slug)
+                            paginas.append({"nombre": text, "url": href.split("?")[0], "id_plataforma": slug})
+                except Exception:
+                    continue
+
+            # Intento 2: si no encontró nada, probar el switcher de páginas
+            if not paginas:
+                await self._page.goto("https://www.facebook.com/", wait_until="domcontentloaded", timeout=15000)
+                await self._human_delay(2, 4)
+                switcher = await self._page.query_selector("[aria-label='Cambiar de página'], [aria-label='Switch accounts']")
+                if switcher:
+                    await switcher.click()
+                    await self._human_delay(2, 3)
+                    items = await self._page.query_selector_all("[role='menuitem'], [role='option']")
+                    for item in items:
+                        try:
+                            text = (await item.inner_text()).strip()
+                            href = await item.get_attribute("href") or ""
+                            if text and len(text) < 80:
+                                paginas.append({"nombre": text, "url": href, "id_plataforma": href.split("/")[-1] if href else text})
+                        except Exception:
+                            continue
+
+            logger.info("Páginas administradas detectadas: %d", len(paginas))
+            return paginas
+        except Exception as e:
+            logger.error("Error al listar páginas administradas: %s", e)
+            return paginas
+
     async def take_screenshot(self) -> bytes:
         """Tomar screenshot de la página actual."""
         if not self._page:

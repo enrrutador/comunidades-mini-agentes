@@ -48,4 +48,10 @@ SELECTORS = {
     "comment_container": "[role='article'] ul li",
     "comment_text": "[dir='auto']",
     "comment_author": "a[role='link']",
+
+    # Creación de Página
+    "page_create_name": "input[name='name'], input[aria-label*='Nombre de la Página'], input[aria-label*='Page name']",
+    "page_create_category": "input[aria-label*='Categoría'], input[aria-label*='Category'], input[placeholder*='Categoría'], input[placeholder*='Category']",
+    "page_create_submit": "button:has-text('Crear página'), button:has-text('Create Page'), button:has-text('Crear Página')",
+    "page_create_skip": "button:has-text('Omitir'), button:has-text('Skip'), button:has-text('Ahora no')",
 }

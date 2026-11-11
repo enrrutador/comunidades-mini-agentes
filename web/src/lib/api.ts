@@ -297,6 +297,22 @@ export function estadoCuentaFB(id: string) {
   );
 }
 
+export function crearPaginaFB(cuentaId: string, nombre: string, categoria?: string) {
+  return request<{ status: string; nombre?: string; url?: string; id_plataforma?: string; pagina_id?: string; error?: string }>(
+    `/facebook/cuentas/${cuentaId}/crear-pagina`,
+    {
+      method: "POST",
+      body: JSON.stringify({ nombre, categoria: categoria ?? "Comunidad" }),
+    },
+  );
+}
+
+export function detectarPaginasFB(cuentaId: string) {
+  return request<PaginaFB[]>(`/facebook/cuentas/${cuentaId}/detectar-paginas`, {
+    method: "POST",
+  });
+}
+
 export function listPaginasFB(cuentaId: string) {
   return request<PaginaFB[]>(`/facebook/cuentas/${cuentaId}/paginas`);
 }

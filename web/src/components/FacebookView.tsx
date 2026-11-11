@@ -19,6 +19,8 @@ import { glow, text, uid } from "@/lib/theme";
 import {
   asignarPaginaFB,
   comentarFB,
+  crearPaginaFB,
+  detectarPaginasFB,
   createCuentaFB,
   deleteCuentaFB,
   listAllPaginasFB,
@@ -506,7 +508,7 @@ export function FacebookView({ characters }: { characters: Character[] }) {
   }
 
   function handleDetectarPaginas(cuenta: CuentaFB) {
-    void listPaginasFB(cuenta.id)
+    void detectarPaginasFB(cuenta.id)
       .then((encontradas) => {
         setPages((current) => {
           const ids = new Set(current.map((page) => page.id));
@@ -524,6 +526,44 @@ export function FacebookView({ characters }: { characters: Character[] }) {
           tipo: "post",
           perfil: cuenta.nombre_identificador,
           pagina: "detección falló",
+          texto: error instanceof Error ? error.message : "error",
+          status: "error",
+        });
+      });
+  }
+
+  function handleCrearPagina(cuenta: CuentaFB) {
+    const nombre = window.prompt("Nombre de la nueva Página de Facebook:");
+    if (!nombre || !nombre.trim()) return;
+    const categoria = window.prompt("Categoría (ej. Comunidad, Marca, Artista):") || "Comunidad";
+    pushFeed({ tipo: "post", perfil: cuenta.nombre_identificador, pagina: `creando "${nombre.trim()}"…`, status: "en_cola" });
+    void crearPaginaFB(cuenta.id, nombre.trim(), categoria.trim())
+      .then((resultado) => {
+        if (resultado.status === "creada") {
+          pushFeed({ tipo: "post", perfil: cuenta.nombre_identificador, pagina: `página creada: ${resultado.nombre}`, status: "ok" });
+          return detectarPaginasFB(cuenta.id);
+        }
+        pushFeed({
+          tipo: "post",
+          perfil: cuenta.nombre_identificador,
+          pagina: "creación falló",
+          texto: resultado.error ?? "error",
+          status: "error",
+        });
+        return null;
+      })
+      .then((encontradas) => {
+        if (!encontradas) return;
+        setPages((current) => {
+          const ids = new Set(current.map((page) => page.id));
+          return [...current, ...encontradas.filter((page) => !ids.has(page.id))];
+        });
+      })
+      .catch((error: unknown) => {
+        pushFeed({
+          tipo: "post",
+          perfil: cuenta.nombre_identificador,
+          pagina: "creación falló",
           texto: error instanceof Error ? error.message : "error",
           status: "error",
         });
@@ -644,6 +684,13 @@ export function FacebookView({ characters }: { characters: Character[] }) {
                     className="shrink-0 rounded border border-white/10 px-1 font-mono text-[7px] text-slate-400 transition hover:text-neon-cyan"
                   >
                     págs
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleCrearPagina(cuenta)}
+                    className="shrink-0 rounded border border-white/10 px-1 font-mono text-[7px] text-slate-400 transition hover:text-neon-cyan"
+                  >
+                    +pág
                   </button>
                   <button
                     type="button"

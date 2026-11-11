@@ -269,6 +269,143 @@ def estado_cuenta(cuenta_id: str, session: Session = Depends(get_session)):
     }
 
 
+
+class CrearPaginaRequest(BaseModel):
+    nombre: str
+    categoria: Optional[str] = "Comunidad"
+
+
+@router.post("/cuentas/{cuenta_id}/crear-pagina")
+def crear_pagina(
+    cuenta_id: str,
+    data: CrearPaginaRequest,
+    session: Session = Depends(get_session),
+):
+    """Crear una Página de Facebook nueva con el navegador de la cuenta."""
+    cuenta = session.get(Cuenta, cuenta_id)
+    if not cuenta:
+        raise HTTPException(status_code=404, detail="Cuenta no encontrada.")
+    if cuenta.estado_conexion != "conectado":
+        raise HTTPException(status_code=400, detail="La cuenta debe estar conectada primero.")
+
+    storage_state = None
+    if cuenta.storage_state_cifrado:
+        try:
+            storage_state = json.loads(descifrar(cuenta.storage_state_cifrado))
+        except Exception:
+            storage_state = None
+
+    async def _run() -> dict:
+        manager = get_browser_manager()
+        connector = await manager.get_connector(cuenta_id, storage_state=storage_state)
+        try:
+            if not await connector.is_logged_in():
+                # re-login con credenciales guardadas
+                if cuenta.email_usuario and cuenta.password_cifrado:
+                    await connector.login(
+                        cuenta.email_usuario,
+                        descifrar(cuenta.password_cifrado),
+                        descifrar(cuenta.totp_secret_cifrado) if cuenta.totp_secret_cifrado else None,
+                    )
+            return await connector.crear_pagina(data.nombre, data.categoria or "Comunidad")
+        finally:
+            await manager.release(cuenta_id)
+
+    resultado = asyncio.run(_run())
+
+    if resultado.get("status") == "creada":
+        pagina = Pagina(
+            cuenta_id=cuenta.id,
+            id_plataforma=resultado.get("id_plataforma") or resultado.get("nombre"),
+            nombre_publico=data.nombre,
+            url=resultado.get("url"),
+            estado_conexion="conectado",
+            capacidades={"publicar": True, "comentar": True, "reaccionar": True},
+        )
+        session.add(pagina)
+        session.commit()
+        session.refresh(pagina)
+        resultado["pagina_id"] = pagina.id
+
+    return resultado
+
+
+@router.post("/cuentas/{cuenta_id}/detectar-paginas")
+def detectar_paginas(
+    cuenta_id: str,
+    session: Session = Depends(get_session),
+):
+    """Detectar las Páginas que la cuenta administra y guardarlas en la DB."""
+    cuenta = session.get(Cuenta, cuenta_id)
+    if not cuenta:
+        raise HTTPException(status_code=404, detail="Cuenta no encontrada.")
+    if cuenta.estado_conexion != "conectado":
+        raise HTTPException(status_code=400, detail="La cuenta debe estar conectada primero.")
+
+    storage_state = None
+    if cuenta.storage_state_cifrado:
+        try:
+            storage_state = json.loads(descifrar(cuenta.storage_state_cifrado))
+        except Exception:
+            storage_state = None
+
+    async def _run() -> list[dict]:
+        manager = get_browser_manager()
+        connector = await manager.get_connector(cuenta_id, storage_state=storage_state)
+        try:
+            if not await connector.is_logged_in():
+                if cuenta.email_usuario and cuenta.password_cifrado:
+                    await connector.login(
+                        cuenta.email_usuario,
+                        descifrar(cuenta.password_cifrado),
+                        descifrar(cuenta.totp_secret_cifrado) if cuenta.totp_secret_cifrado else None,
+                    )
+            return await connector.listar_paginas_administradas()
+        finally:
+            await manager.release(cuenta_id)
+
+    encontradas = asyncio.run(_run())
+
+    nuevas = 0
+    for item in encontradas:
+        id_plat = item.get("id_plataforma") or item.get("nombre")
+        existing = session.exec(
+            select(Pagina).where(Pagina.cuenta_id == cuenta_id, Pagina.id_plataforma == id_plat)
+        ).first()
+        if existing:
+            existing.nombre_publico = item.get("nombre") or existing.nombre_publico
+            existing.url = item.get("url") or existing.url
+            session.add(existing)
+        else:
+            session.add(
+                Pagina(
+                    cuenta_id=cuenta.id,
+                    id_plataforma=id_plat,
+                    nombre_publico=item.get("nombre") or "Sin nombre",
+                    url=item.get("url"),
+                    estado_conexion="conectado",
+                    capacidades={"publicar": True, "comentar": True, "reaccionar": True},
+                )
+            )
+            nuevas += 1
+    session.commit()
+
+    paginas = session.exec(select(Pagina).where(Pagina.cuenta_id == cuenta_id)).all()
+    return [
+        PaginaResponse(
+            id=p.id,
+            id_plataforma=p.id_plataforma,
+            nombre_publico=p.nombre_publico,
+            url=p.url,
+            avatar_url=p.avatar_url,
+            estado_conexion=p.estado_conexion,
+            capacidades=p.capacidades,
+            personaje_id=p.personaje_id,
+        )
+        for p in paginas
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Páginas
 # ---------------------------------------------------------------------------
