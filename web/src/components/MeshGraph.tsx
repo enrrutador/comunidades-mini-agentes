@@ -10,6 +10,7 @@ const PATHS = [
   { d: "M55 138 C92 150 120 190 138 222", dur: "3.1s" },
   { d: "M58 392 C100 380 124 320 138 286", dur: "2.8s" },
   { d: "M62 462 C105 440 128 350 140 292", dur: "3.4s" },
+  { d: "M240 470 C210 445 172 380 152 298", dur: "2.9s" },
 ];
 
 function InputChip({
@@ -159,11 +160,13 @@ export function MeshGraph({
         <InputChip label="INBOX" hint="inbox scan" className="left-[3%] top-[24%]" />
         <InputChip label="CALENDAR" hint="tune rules" className="bottom-[22%] left-[3%]" />
         <InputChip label="MEMORY_MD" hint="memory.md" className="bottom-[7%] left-[6%]" />
+        <InputChip label="FACEBOOK" hint="posts · comments" className="bottom-[10%] right-[4%]" />
 
         <LineLabel text="plan.md" className="left-[26%] top-[13%]" />
         <LineLabel text="run my week" className="left-[30%] top-[19%]" />
         <LineLabel text="inbox scan" className="left-[27%] top-[30%]" />
         <LineLabel text="tune rules" className="left-[24%] bottom-[26%]" />
+        <LineLabel text="publish · comment" className="right-[6%] bottom-[32%]" />
 
         <div className="absolute left-[46%] top-[49%] z-10 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center">
           <div

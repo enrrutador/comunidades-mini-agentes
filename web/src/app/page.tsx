@@ -8,6 +8,7 @@ import { RunsView } from "@/components/RunsView";
 import { RulesView } from "@/components/RulesView";
 import { MemoryView } from "@/components/MemoryView";
 import { CommunityView } from "@/components/CommunityView";
+import { FacebookView } from "@/components/FacebookView";
 import { SettingsModal } from "@/components/SettingsModal";
 import { BotConfigModal, unitCode } from "@/components/BotCard";
 import { CharacterConfigModal } from "@/components/CharacterCard";
@@ -470,6 +471,12 @@ export default function PulseOS() {
           <RulesView rules={rules} onChange={setRules} />
         ) : activeTab === "Memory" ? (
           <MemoryView memories={memories} onChange={setMemories} />
+        ) : activeTab === "Facebook" ? (
+          <FacebookView
+            characters={characters}
+            workspaceId={workspace}
+            workspaceName={workspaceName}
+          />
         ) : (
           <CommunityView
             communities={communities}

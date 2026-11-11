@@ -3,7 +3,9 @@
  * Apunta al backend FastAPI (por defecto localhost:8000).
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (typeof window !== "undefined" ? "/backend/api" : "http://127.0.0.1:8000/api");
 
 function getAuthToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -259,6 +261,7 @@ export interface PaginaFB {
   avatar_url?: string | null;
   estado_conexion: string;
   capacidades?: Record<string, unknown> | null;
+  personaje_id?: string | null;
 }
 
 export function listCuentasFB() {
@@ -312,9 +315,30 @@ export function asignarPaginaFB(paginaId: string, personajeId: string) {
   );
 }
 
+export function desasignarPaginaFB(paginaId: string) {
+  return request<{ status: string; pagina_id: string }>(
+    `/facebook/paginas/${paginaId}/desasignar`,
+    { method: "PATCH" },
+  );
+}
+
 export function publicarPostFB(data: { pagina_id: string; mensaje: string; media_url?: string }) {
   return request<{ status: string; message: string; pagina_id: string }>(
     "/facebook/publicar",
+    { method: "POST", body: JSON.stringify(data) },
+  );
+}
+
+export function comentarFB(data: { post_url: string; mensaje: string }) {
+  return request<{ status: string; message: string; post_url: string }>(
+    "/facebook/comentar",
+    { method: "POST", body: JSON.stringify(data) },
+  );
+}
+
+export function reaccionarFB(data: { object_url: string; tipo: string }) {
+  return request<{ status: string; message: string; object_url: string; tipo: string }>(
+    "/facebook/reaccionar",
     { method: "POST", body: JSON.stringify(data) },
   );
 }

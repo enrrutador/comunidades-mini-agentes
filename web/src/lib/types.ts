@@ -8,7 +8,7 @@ export type Color =
   | "blue"
   | "red";
 
-export type Tab = "Global" | "Bots" | "Runs" | "Rules" | "Memory" | "Comunidad";
+export type Tab = "Global" | "Bots" | "Runs" | "Rules" | "Memory" | "Comunidad" | "Facebook";
 
 export type RunStatus = "idle" | "running" | "complete" | "error";
 export type UnitStatus = "running" | "verified" | "rejected";

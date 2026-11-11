@@ -50,6 +50,7 @@ class PaginaResponse(BaseModel):
     avatar_url: Optional[str]
     estado_conexion: str
     capacidades: Optional[dict]
+    personaje_id: Optional[str] = None
 
 
 class AsignarPaginaRequest(BaseModel):
@@ -228,6 +229,7 @@ def listar_paginas_de_cuenta(cuenta_id: str, session: Session = Depends(get_sess
             avatar_url=p.avatar_url,
             estado_conexion=p.estado_conexion,
             capacidades=p.capacidades,
+            personaje_id=p.personaje_id,
         )
         for p in paginas
     ]
@@ -246,6 +248,7 @@ def listar_paginas(session: Session = Depends(get_session)):
             avatar_url=p.avatar_url,
             estado_conexion=p.estado_conexion,
             capacidades=p.capacidades,
+            personaje_id=p.personaje_id,
         )
         for p in paginas
     ]

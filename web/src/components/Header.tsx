@@ -5,7 +5,7 @@ import { Stat } from "./ui";
 import type { Tab } from "@/lib/types";
 import { COMMUNITIES } from "@/lib/data";
 
-const TABS: Tab[] = ["Global", "Bots", "Runs", "Rules", "Memory", "Comunidad"];
+const TABS: Tab[] = ["Global", "Bots", "Runs", "Rules", "Memory", "Comunidad", "Facebook"];
 
 export interface HeaderStats {
   online: number;
