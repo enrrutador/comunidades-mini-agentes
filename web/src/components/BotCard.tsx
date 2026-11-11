@@ -16,11 +16,11 @@ export function unitCode(bot: Bot, index: number): string {
 }
 
 function statusOf(liveState: BotLiveState, enabled: boolean) {
-  if (liveState === "running") return { label: "Running", color: "cyan" as const, pulse: true };
-  if (liveState === "verified") return { label: "Verified", color: "green" as const, pulse: false };
-  if (liveState === "rejected") return { label: "Rejected", color: "red" as const, pulse: false };
-  if (enabled) return { label: "Enabled", color: "green" as const, pulse: false };
-  return { label: "Paused", color: "yellow" as const, pulse: false };
+  if (liveState === "running") return { label: "Ejecutando", color: "cyan" as const, pulse: true };
+  if (liveState === "verified") return { label: "Verificado", color: "green" as const, pulse: false };
+  if (liveState === "rejected") return { label: "Rechazado", color: "red" as const, pulse: false };
+  if (enabled) return { label: "Activo", color: "green" as const, pulse: false };
+  return { label: "Pausado", color: "yellow" as const, pulse: false };
 }
 
 export function BotPill({
@@ -126,9 +126,9 @@ export function BotCard({
       </div>
 
       <div className="mt-2 space-y-0.5 font-mono text-[8px] text-slate-500">
-        <span className="block">• own context</span>
-        <span className="block">• loop: max {bot.maxLoops}</span>
-        <span className="block">• check: {bot.autoVerify ? "pass cond." : "manual"}</span>
+        <span className="block">• contexto propio</span>
+        <span className="block">• ciclos: máx {bot.maxLoops}</span>
+        <span className="block">• check: {bot.autoVerify ? "pase automático" : "manual"}</span>
       </div>
 
       <div className="mt-auto flex items-center justify-between gap-2 pt-2.5">
@@ -142,7 +142,7 @@ export function BotCard({
           }`}
         >
           {bot.connected ? <Check size={10} /> : <Link2 size={10} />}
-          {bot.connected ? "Connect" : "→ Connect"}
+          {bot.connected ? "Conectado" : "→ Conectar"}
         </button>
         <button
           type="button"

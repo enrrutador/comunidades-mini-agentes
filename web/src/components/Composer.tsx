@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Send, Settings2, Square, Sparkles } from "lucide-react";
 
 const SUGGESTIONS = [
@@ -14,6 +14,8 @@ export function Composer({
   configured,
   providerName,
   model,
+  models = [],
+  onSetModel,
   onRun,
   onStop,
   onOpenSettings,
@@ -22,11 +24,14 @@ export function Composer({
   configured: boolean;
   providerName: string;
   model: string;
+  models?: string[];
+  onSetModel: (model: string) => void;
   onRun: (prompt: string) => void;
   onStop: () => void;
   onOpenSettings: () => void;
 }) {
   const [value, setValue] = useState("");
+  const listId = useId();
 
   function submit() {
     const prompt = value.trim();
@@ -81,9 +86,19 @@ export function Composer({
               <span className="max-w-[90px] truncate">{providerName}</span>
             </button>
             <span className="h-2 w-px bg-white/10" />
-            <span className="truncate font-mono text-[9px] text-slate-500">
-              {model || "sin modelo"}
-            </span>
+            <input
+              list={listId}
+              value={model}
+              onChange={(event) => onSetModel(event.target.value)}
+              placeholder="modelo…"
+              aria-label="Modelo del LLM"
+              className="w-[120px] shrink-0 rounded bg-transparent px-1 py-0.5 font-mono text-[9px] text-slate-300 outline-none transition hover:bg-white/5 focus:bg-white/5 sm:w-[170px]"
+            />
+            <datalist id={listId}>
+              {models.map((item) => (
+                <option key={item} value={item} />
+              ))}
+            </datalist>
             <span
               className={`rounded px-1 py-0.5 font-mono text-[8px] ${
                 configured
@@ -120,8 +135,8 @@ export function Composer({
       <div className="mt-1 flex items-center gap-1.5 font-mono text-[8px] text-slate-600">
         <Sparkles size={9} className="text-neon-purple/60" />
         {configured
-          ? "El orquestador usa el proveedor activo y las reglas del workspace."
-          : "Modo demo: configurá una API key para respuestas reales del LLM."}
+          ? "El orquestador usa el proveedor activo; cambiá el modelo desde esta caja."
+          : "Modo demo: configurá una API key en ⚙ para respuestas reales del LLM."}
       </div>
     </div>
   );

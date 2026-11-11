@@ -8,7 +8,7 @@ export type Color =
   | "blue"
   | "red";
 
-export type Tab = "Global" | "Bots" | "Runs" | "Rules" | "Memory" | "Comunidad" | "Facebook";
+export type Tab = "Global" | "Bots" | "Runs" | "Rules" | "Memory" | "Facebook";
 
 export type RunStatus = "idle" | "running" | "complete" | "error";
 export type UnitStatus = "running" | "verified" | "rejected";
@@ -101,6 +101,7 @@ export interface ProviderConfig {
   name: string;
   baseUrl: string;
   model: string;
+  models?: string[];
   apiKey: string;
   enabled: boolean;
   status: "unknown" | "ok" | "error";

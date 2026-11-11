@@ -3,9 +3,8 @@
 import { RefreshCw, Settings2 } from "lucide-react";
 import { Stat } from "./ui";
 import type { Tab } from "@/lib/types";
-import { COMMUNITIES } from "@/lib/data";
 
-const TABS: Tab[] = ["Global", "Bots", "Runs", "Rules", "Memory", "Comunidad", "Facebook"];
+const TABS: Tab[] = ["Global", "Bots", "Runs", "Rules", "Memory", "Facebook"];
 
 export interface HeaderStats {
   online: number;
@@ -18,8 +17,6 @@ export interface HeaderStats {
 export function Header({
   activeTab,
   onTab,
-  workspace,
-  onWorkspace,
   onRefresh,
   stats,
   configured,
@@ -29,8 +26,6 @@ export function Header({
 }: {
   activeTab: Tab;
   onTab: (tab: Tab) => void;
-  workspace: string;
-  onWorkspace: (id: string) => void;
   onRefresh: () => void;
   stats: HeaderStats;
   configured: boolean;
@@ -92,7 +87,7 @@ export function Header({
                 running ? "text-neon-cyan" : "text-neon-red"
               }`}
             >
-              {running ? "RUN" : "LIVE"}
+              {running ? "EJECUTANDO" : "EN VIVO"}
             </span>
           </div>
           <button
@@ -108,24 +103,9 @@ export function Header({
 
       <div className="flex items-center gap-2 border-t border-white/5 px-3 py-1.5 sm:gap-3 sm:px-5">
         <div className="flex min-w-0 shrink-0 items-center gap-1 font-mono text-[10px] text-slate-500">
-          <span className="hidden sm:inline">global /</span>
-          <div className="relative">
-            <select
-              value={workspace}
-              onChange={(event) => onWorkspace(event.target.value)}
-              aria-label="Workspace"
-              className="max-w-[150px] appearance-none truncate rounded bg-transparent py-0.5 pr-4 text-[11px] text-neon-cyan outline-none ring-0 sm:max-w-none"
-            >
-              {COMMUNITIES.map((community) => (
-                <option key={community.id} value={community.id} className="bg-[#0a0a13]">
-                  {community.name}
-                </option>
-              ))}
-            </select>
-            <span className="pointer-events-none absolute right-0.5 top-1/2 -translate-y-1/2 text-[8px] text-neon-cyan/70">
-              ▾
-            </span>
-          </div>
+          <span className="text-slate-400">global</span>
+          <span className="text-slate-600">/</span>
+          <span className="text-neon-cyan">pulse-os</span>
           <button
             type="button"
             onClick={onRefresh}
@@ -137,14 +117,14 @@ export function Header({
         </div>
 
         <div className="no-scrollbar ml-auto flex items-center gap-3 overflow-x-auto sm:gap-5">
-          <Stat value={stats.online} label="bots online" color="green" />
-          <Stat value={stats.units} label="units" color="cyan" />
-          <Stat value={stats.verified} label="verified" color="green" />
+          <Stat value={stats.online} label="bots en línea" color="green" />
+          <Stat value={stats.units} label="unidades" color="cyan" />
+          <Stat value={stats.verified} label="verificadas" color="green" />
           <span className="hidden sm:inline-flex">
-            <Stat value={stats.rejected} label="rejected" color="red" />
+            <Stat value={stats.rejected} label="rechazadas" color="red" />
           </span>
           <span className="hidden sm:inline-flex">
-            <Stat value={stats.rules} label="rules" color="yellow" />
+            <Stat value={stats.rules} label="reglas" color="yellow" />
           </span>
           {running ? (
             <span className="hidden animate-pulse items-center gap-1 font-mono text-[9px] text-neon-cyan sm:flex">

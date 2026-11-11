@@ -15,8 +15,9 @@ export function activeProvider(settings: Settings): ProviderConfig | undefined {
 export function llmConfigured(settings: Settings): boolean {
   const provider = activeProvider(settings);
   if (!provider) return false;
-  if (!provider.baseUrl.trim() || !provider.model.trim()) return false;
-  return Boolean(provider.apiKey.trim()) || isLocalUrl(provider.baseUrl);
+  if (!provider.baseUrl.trim()) return false;
+  if (provider.models && provider.models.length > 0) return true;
+  return Boolean(provider.model.trim()) || Boolean(provider.apiKey.trim());
 }
 
 interface LLMResponse {
@@ -36,10 +37,18 @@ async function readJson(response: Response): Promise<LLMResponse> {
 export async function callLLM(
   prompt: string,
   settings: Settings,
-  options?: { system?: string; maxTokens?: number },
+  options?: { system?: string; maxTokens?: number; model?: string },
 ): Promise<string> {
   const provider = activeProvider(settings);
   if (!provider) throw new Error("No hay un proveedor LLM activo.");
+
+  const model =
+    options?.model ?? provider.model ?? provider.models?.[0] ?? "";
+  if (!model.trim()) {
+    throw new Error(
+      "Elegí un modelo en la caja de chat (probá la conexión en ⚙ para cargar la lista).",
+    );
+  }
 
   const system =
     options?.system ??
@@ -51,7 +60,7 @@ export async function callLLM(
     body: JSON.stringify({
       baseUrl: provider.baseUrl,
       apiKey: provider.apiKey,
-      model: provider.model,
+      model,
       temperature: settings.temperature,
       maxTokens: options?.maxTokens ?? settings.maxTokens,
       messages: [

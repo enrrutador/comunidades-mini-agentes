@@ -64,10 +64,10 @@ export function GlobalView({
   configured,
   providerName,
   activeModel,
+  models,
+  onSetModel,
   llmReply,
   llmError,
-  workspaceId,
-  workspaceName,
   onRun,
   onStop,
   onOpenSettings,
@@ -84,10 +84,10 @@ export function GlobalView({
   configured: boolean;
   providerName: string;
   activeModel: string;
+  models: string[];
+  onSetModel: (model: string) => void;
   llmReply: string;
   llmError: string;
-  workspaceId: string;
-  workspaceName: string;
   onRun: (prompt: string) => void;
   onStop: () => void;
   onOpenSettings: () => void;
@@ -105,15 +105,7 @@ export function GlobalView({
     () => bots.filter((bot) => bot.kind === "workflow"),
     [bots],
   );
-  const communityCharacters = useMemo(
-    () =>
-      workspaceId === "pulse-os"
-        ? characters
-        : characters.filter(
-            (character) => character.communityId === workspaceId,
-          ),
-    [characters, workspaceId],
-  );
+  const communityCharacters = characters;
 
   const counts: Record<Filter, number> = {
     all: bots.length + communityCharacters.length,
@@ -210,7 +202,7 @@ export function GlobalView({
                 </div>
                 <div className="hidden shrink-0 items-center gap-1.5 font-mono text-[9px] text-slate-500 sm:flex">
                   <StatusDot color="green" />
-                  <span>mesh listo</span>
+                  <span>grafo listo</span>
                 </div>
               </div>
 
@@ -228,22 +220,22 @@ export function GlobalView({
                     <section>
                       <SectionTitle
                         title="Bots de workflow"
-                        subtitle="unidades ejecutables del task graph"
+                        subtitle="unidades ejecutables del grafo de tareas"
                         count={workflow.length}
                       />
                       {renderBots(workflow)}
                     </section>
                     <section>
                       <SectionTitle
-                        title="Personajes de la comunidad"
-                        subtitle={`workspace · ${workspaceName}`}
+                        title="Personajes"
+                        subtitle="perfiles con identidad propia"
                         count={communityCharacters.length}
                       />
                       {communityCharacters.length > 0 ? (
                         renderCharacters(communityCharacters)
                       ) : (
                         <div className="rounded-lg border border-dashed border-white/10 px-3 py-6 text-center font-mono text-[10px] text-slate-600">
-                          este workspace todavía no tiene personajes
+                          todavía no hay personajes
                         </div>
                       )}
                     </section>
@@ -256,7 +248,7 @@ export function GlobalView({
                   renderCharacters(communityCharacters)
                 ) : (
                   <div className="rounded-lg border border-dashed border-white/10 px-3 py-8 text-center font-mono text-[10px] text-slate-600">
-                    este workspace todavía no tiene personajes
+                    todavía no hay personajes
                   </div>
                 )}
               </div>
@@ -268,7 +260,7 @@ export function GlobalView({
           status={run.status}
           units={run.units}
           expected={run.expected}
-          workspaceName={workspaceName}
+          workspaceName="pulse-os"
           model={configured ? activeModel : "demo"}
           llmReply={llmReply}
           llmError={llmError}
@@ -286,6 +278,8 @@ export function GlobalView({
         configured={configured}
         providerName={providerName}
         model={activeModel}
+        models={models}
+        onSetModel={onSetModel}
         onRun={onRun}
         onStop={onStop}
         onOpenSettings={onOpenSettings}

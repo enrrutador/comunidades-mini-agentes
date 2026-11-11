@@ -121,7 +121,7 @@ export function RunsView({
                 <StatusDot color="red" />
                 <span className="text-slate-400">{run.rejected} rej</span>
                 <span className="ml-1 rounded bg-white/5 px-1.5 py-0.5 text-slate-400">
-                  {run.units} units
+                  {run.units} unidades
                 </span>
               </div>
             </div>
@@ -156,9 +156,9 @@ export function RunsView({
             </p>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {[
-                ["units", selected.units, "text-neon-cyan"],
-                ["verified", selected.verified, "text-neon-green"],
-                ["rejected", selected.rejected, "text-neon-red"],
+                ["unidades", selected.units, "text-neon-cyan"],
+                ["verificadas", selected.verified, "text-neon-green"],
+                ["rechazadas", selected.rejected, "text-neon-red"],
                 ["modelo", selected.model, "text-neon-purple"],
               ].map(([label, value, color]) => (
                 <div

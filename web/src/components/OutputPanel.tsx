@@ -94,7 +94,7 @@ export function OutputPanel({
       className={`flex w-full flex-col border-t border-[#1a1a2e] bg-[#05050a] xl:w-[310px] xl:border-t-0 xl:border-l 2xl:w-[340px] ${className}`}
     >
       <div className="flex shrink-0 items-center justify-between gap-2 border-b border-[#1a1a2e] px-3 py-2 font-mono text-[9px]">
-        <span className="text-slate-500">OUTPUT</span>
+        <span className="text-slate-500">SALIDA</span>
         <span
           className={
             running
@@ -104,7 +104,7 @@ export function OutputPanel({
               : "text-slate-600"
           }
         >
-          {running ? "running" : complete ? "verified" : "idle"}
+          {running ? "ejecutando" : complete ? "verificado" : "inactivo"}
         </span>
       </div>
 
@@ -116,56 +116,56 @@ export function OutputPanel({
                 <Check size={26} strokeWidth={2.5} />
               </div>
               <div className="mt-2 font-mono text-[9px] tracking-widest text-neon-green">
-                VERIFIED OUTPUT
+                SALIDA VERIFICADA
               </div>
               <div className="font-mono text-[9px] text-slate-500">
-                {verified + rejected} / {expected} checked
+                {verified + rejected} / {expected} verificadas
               </div>
             </div>
 
             <div className="rounded-lg border border-white/[0.07] bg-white/[0.02] p-3">
               <div className="font-mono text-[8px] text-neon-green">
-                ● RUN COMPLETE · {workspaceName}
+                ● RUN COMPLETO · {workspaceName}
               </div>
               <div className="mt-0.5 text-3xl font-semibold tracking-tight text-slate-50">
-                {units.length} units
+                {units.length} unidades
               </div>
               <div className="mt-1 flex flex-wrap gap-x-2 font-mono text-[8px] text-slate-500">
                 <span>{online} bots</span>
-                <span className="text-neon-red">{rejected} rejected</span>
-                <span className="text-neon-yellow">3 rules</span>
-                <span className="text-neon-green">0 broken</span>
+                <span className="text-neon-red">{rejected} rechazadas</span>
+                <span className="text-neon-yellow">3 reglas</span>
+                <span className="text-neon-green">0 rotas</span>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-2">
-              <ReportCard title="Inbox · zero">
+              <ReportCard title="Bandeja · cero">
                 <div className="space-y-0.5">
-                  <ListLine ok label="replies sorted" />
-                  <ListLine ok label="flags cleared" />
-                  <ListLine ok={false} label="2 escalations" />
+                  <ListLine ok label="respuestas ordenadas" />
+                  <ListLine ok label="alertas despejadas" />
+                  <ListLine ok={false} label="2 escalaron a humano" />
                 </div>
               </ReportCard>
-              <ReportCard title={`posts · ${verified} queued`}>
+              <ReportCard title={`posts · ${verified} en cola`}>
                 <Bars color="bg-neon-green/45" />
               </ReportCard>
               <ReportCard title="MEMORY.md · +3">
                 <div className="space-y-0.5 font-mono text-[8px] text-slate-500">
-                  <span className="block">reply in my tone</span>
-                  <span className="block">flags under $1,200</span>
-                  <span className="block">cut 25% on invoices</span>
+                  <span className="block">responder con mi tono</span>
+                  <span className="block">alertas bajo $1.200</span>
+                  <span className="block">recortar 25% en facturas</span>
                 </div>
               </ReportCard>
-              <ReportCard title="payment · needs you">
+              <ReportCard title="pago · necesita tu ok">
                 <div className="font-mono text-[8px] leading-snug text-slate-400">
-                  wire $1,840 · contractor approved by you
+                  transferencia $1.840 · contratista aprobada por vos
                 </div>
                 <div className="mt-1.5 flex gap-1">
                   <span className="rounded border border-neon-green/40 bg-neon-green/10 px-1.5 py-0.5 font-mono text-[8px] text-neon-green">
-                    {autoPay ? "approved" : "approve"}
+                    {autoPay ? "aprobado" : "aprobar"}
                   </span>
                   <span className="rounded border border-white/10 px-1.5 py-0.5 font-mono text-[8px] text-slate-400">
-                    send back
+                    devolver
                   </span>
                 </div>
               </ReportCard>
@@ -174,13 +174,13 @@ export function OutputPanel({
         ) : running ? (
           <div className="neon-card glow-cyan p-3">
             <div className="flex items-center justify-between gap-2 font-mono text-[8px] text-slate-500">
-              <span>RUNNING · {workspaceName}</span>
+              <span>EJECUTANDO · {workspaceName}</span>
               <Loader2 size={11} className="animate-spin text-neon-cyan" />
             </div>
             <div className="mt-1 text-3xl font-semibold tracking-tight text-slate-50">
               {units.length}
               <span className="ml-1 text-xs font-normal text-slate-500">
-                / {expected} units
+                / {expected} unidades
               </span>
             </div>
             <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/5">
@@ -193,7 +193,7 @@ export function OutputPanel({
               <div className="mt-2 flex items-center gap-1.5 font-mono text-[9px]">
                 <span className="h-1 w-1 animate-pulse rounded-full bg-neon-cyan" />
                 <span className="text-neon-cyan">{activeUnit.label}</span>
-                <span className="text-slate-600">executing</span>
+                <span className="text-slate-600">ejecutando</span>
               </div>
             ) : null}
           </div>

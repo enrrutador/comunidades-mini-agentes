@@ -106,6 +106,10 @@ export function SettingsModal({
       updateProvider(provider.id, {
         status: "ok",
         lastTest: new Date().toISOString(),
+        models: result.models,
+        model:
+          provider.model ||
+          (result.models.length > 0 ? result.models[0] : provider.model),
       });
       setTestMsg((current) => ({
         ...current,
@@ -225,7 +229,10 @@ export function SettingsModal({
                         />
                       </div>
                       <div className="truncate font-mono text-[9px] text-slate-500">
-                        {provider.model || "sin modelo"} · {provider.baseUrl || "sin endpoint"}
+                        {provider.baseUrl || "sin endpoint"}
+                        {provider.models && provider.models.length > 0
+                          ? ` · ${provider.models.length} modelos`
+                          : ""}
                       </div>
                       {message ? (
                         <div
@@ -308,28 +315,19 @@ export function SettingsModal({
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Modelo">
-                <input
-                  value={selected.model}
-                  onChange={(event) =>
-                    updateProvider(selected.id, { model: event.target.value })
-                  }
-                  placeholder="gpt-4o-mini"
-                  className="input-neon font-mono text-[11px]"
-                />
-              </Field>
-              <Field label="Base URL" hint="OpenAI-compatible">
-                <input
-                  value={selected.baseUrl}
-                  onChange={(event) =>
-                    updateProvider(selected.id, { baseUrl: event.target.value })
-                  }
-                  placeholder="https://api.openai.com/v1"
-                  className="input-neon font-mono text-[11px]"
-                />
-              </Field>
-            </div>
+            <Field
+              label="Base URL"
+              hint="compatible con OpenAI · el modelo se elige en la caja de chat"
+            >
+              <input
+                value={selected.baseUrl}
+                onChange={(event) =>
+                  updateProvider(selected.id, { baseUrl: event.target.value })
+                }
+                placeholder="https://api.openai.com/v1"
+                className="input-neon font-mono text-[11px]"
+              />
+            </Field>
 
             <Field label="API key" hint="se guarda solo en este navegador">
               <div className="relative">
@@ -369,7 +367,7 @@ export function SettingsModal({
               La API key se guarda en <span className="text-slate-300">localStorage</span> y
               sólo viaja al proveedor elegido a través del proxy del panel. No se
               persiste en el servidor. El proveedor activo se usa para el
-              orquestador; cada bot puede sobrescribir su modelo.
+              orquestador y para cada unidad del run. El modelo se elige y cambia desde la caja de chat.
             </p>
           </section>
         ) : null}

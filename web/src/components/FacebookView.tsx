@@ -61,6 +61,8 @@ const COMMENT_TEMPLATES = [
   "Yo adopté así, recomiendo 100%.",
 ];
 
+const PAGE_FALLBACK = "Página demo";
+
 const REACTIONS = [
   { tipo: "like", emoji: "👍" },
   { tipo: "love", emoji: "❤️" },
@@ -267,15 +269,7 @@ function PageCard({
   );
 }
 
-export function FacebookView({
-  characters,
-  workspaceId,
-  workspaceName,
-}: {
-  characters: Character[];
-  workspaceId: string;
-  workspaceName: string;
-}) {
+export function FacebookView({ characters }: { characters: Character[] }) {
   const [pages, setPages] = useStored<PaginaFB[]>("pulse.fb.pages.v1", []);
   const [cuentas, setCuentas] = useState<CuentaFB[]>([]);
   const [feed, setFeed] = useStored<FBEntry[]>("pulse.fb.feed.v1", []);
@@ -287,13 +281,7 @@ export function FacebookView({
   const [postText, setPostText] = useState("");
   const feedTopRef = useRef<HTMLDivElement>(null);
 
-  const perfiles = useMemo(
-    () =>
-      characters.filter(
-        (character) => workspaceId === "pulse-os" || character.communityId === workspaceId,
-      ),
-    [characters, workspaceId],
-  );
+  const perfiles = characters;
 
   const pushFeed = useCallback(
     (entry: Omit<FBEntry, "id" | "time">) => {
@@ -332,7 +320,7 @@ export function FacebookView({
     if (!demoOn || perfiles.length === 0) return;
     const timer = setInterval(() => {
       const perfil = pick(perfiles);
-      const page = pages.length > 0 ? pick(pages).nombre_publico : `${workspaceName} · fans`;
+      const page = pages.length > 0 ? pick(pages).nombre_publico : PAGE_FALLBACK;
       const roll = Math.random();
       if (roll < 0.4) {
         pushFeed({ tipo: "post", perfil: perfil.name, pagina: page, texto: pick(POST_TEMPLATES), status: "demo" });
@@ -343,7 +331,7 @@ export function FacebookView({
       }
     }, 2400 + Math.random() * 1500);
     return () => clearInterval(timer);
-  }, [demoOn, perfiles, pages, pushFeed, workspaceName]);
+  }, [demoOn, perfiles, pages, pushFeed]);
 
   const demoMode = pages.length === 0;
   const okCount = feed.filter((entry) => entry.status === "ok").length;
@@ -517,7 +505,7 @@ export function FacebookView({
       <div className="flex flex-wrap items-center gap-2 border-b border-[#1a1a2e] bg-[#05050a]/95 px-3 py-2 backdrop-blur sm:gap-4">
         <div className="flex items-center gap-1 font-mono text-[10px] text-slate-500">
           <span>facebook /</span>
-          <span className="text-neon-cyan">{workspaceName}</span>
+          <span className="text-neon-cyan">pulse-os</span>
         </div>
 
         <div className="no-scrollbar ml-auto flex items-center gap-3 overflow-x-auto font-mono text-[9px] text-slate-500 sm:gap-5">
@@ -545,7 +533,7 @@ export function FacebookView({
           }`}
         >
           <span className={`h-1.5 w-1.5 rounded-full ${demoOn ? "animate-pulse bg-neon-red" : "bg-slate-600"}`} />
-          {demoOn ? "LIVE" : "demo off"}
+          {demoOn ? "EN VIVO" : "apagado"}
         </button>
         <button
           type="button"

@@ -156,17 +156,17 @@ export function MeshGraph({
           </g>
         </svg>
 
-        <InputChip label="TASK" hint="run my week" className="left-[4%] top-[7%]" />
-        <InputChip label="INBOX" hint="inbox scan" className="left-[3%] top-[24%]" />
-        <InputChip label="CALENDAR" hint="tune rules" className="bottom-[22%] left-[3%]" />
+        <InputChip label="TAREA" hint="corré mi semana" className="left-[4%] top-[7%]" />
+        <InputChip label="BANDEJA" hint="escaneo de bandeja" className="left-[3%] top-[24%]" />
+        <InputChip label="CALENDARIO" hint="ajustar reglas" className="bottom-[22%] left-[3%]" />
         <InputChip label="MEMORY_MD" hint="memory.md" className="bottom-[7%] left-[6%]" />
-        <InputChip label="FACEBOOK" hint="posts · comments" className="bottom-[10%] right-[4%]" />
+        <InputChip label="FACEBOOK" hint="posts · comentarios" className="bottom-[10%] right-[4%]" />
 
         <LineLabel text="plan.md" className="left-[26%] top-[13%]" />
-        <LineLabel text="run my week" className="left-[30%] top-[19%]" />
-        <LineLabel text="inbox scan" className="left-[27%] top-[30%]" />
-        <LineLabel text="tune rules" className="left-[24%] bottom-[26%]" />
-        <LineLabel text="publish · comment" className="right-[6%] bottom-[32%]" />
+        <LineLabel text="corré mi semana" className="left-[30%] top-[19%]" />
+        <LineLabel text="scan bandeja" className="left-[27%] top-[30%]" />
+        <LineLabel text="ajustar reglas" className="left-[24%] bottom-[26%]" />
+        <LineLabel text="publicar · comentar" className="right-[6%] bottom-[32%]" />
 
         <div className="absolute left-[46%] top-[49%] z-10 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center">
           <div
@@ -182,7 +182,7 @@ export function MeshGraph({
             PULSE BOT
           </div>
           <div className={`mt-0.5 font-mono text-[8px] ${running ? "text-neon-cyan" : "text-slate-600"}`}>
-            {running ? "orquestando…" : "idle"}
+            {running ? "orquestando…" : "en espera"}
           </div>
         </div>
 
@@ -190,47 +190,47 @@ export function MeshGraph({
           title="Check"
           color="yellow"
           badge="check"
-          toggleLabel="Finished"
-          desc="Writer pass condition"
+          toggleLabel="Finalizado"
+          desc="Condición de pase del escritor"
           chips={
             <>
-              <span>list: cores · no auto-pay</span>
+              <span>lista: núcleos · sin auto-pago</span>
               <span className="mt-1 flex items-center gap-1">
                 <Chip>MEMORY.md</Chip>
               </span>
-              <span className="text-slate-500">• Splitter → 15 bots</span>
+              <span className="text-slate-500">• Repartidor → 15 bots</span>
             </>
           }
-          footer="Splitter"
-          action="→ Connect"
+          footer="Repartidor"
+          action="→ Conectar"
           className="right-[2%] top-[12%]"
         />
         <SpecialCard
-          title="Splitter"
+          title="Repartidor"
           color="blue"
           badge="split"
-          toggleLabel="Finished"
-          desc="Cuts task into units"
+          toggleLabel="Finalizado"
+          desc="Corta la tarea en unidades"
           chips={
             <>
-              <span>• target → data only</span>
-              <span>• → → in parallel</span>
-              <span className="pt-1 text-slate-500">Task graph</span>
-              <span>• 15 units</span>
+              <span>• objetivo → solo datos</span>
+              <span>• → → en paralelo</span>
+              <span className="pt-1 text-slate-500">Grafo de tareas</span>
+              <span>• 15 unidades</span>
             </>
           }
-          footer="Task graph"
-          action="→ Connect"
+          footer="Grafo de tareas"
+          action="→ Conectar"
           className="right-[2%] bottom-[16%]"
         />
       </div>
 
       <div className="flex items-center justify-between gap-2 border-t border-white/[0.04] px-3 py-2 font-mono text-[8px] text-slate-600">
         <span className="flex items-center gap-1">
-          <GitBranch size={9} className="text-neon-purple" /> task graph
+          <GitBranch size={9} className="text-neon-purple" /> grafo de tareas
         </span>
         <span>{characters} personajes</span>
-        <span className="text-neon-cyan/60">live · beams</span>
+        <span className="text-neon-cyan/60">en vivo · rayos</span>
       </div>
     </section>
   );

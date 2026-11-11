@@ -24,7 +24,7 @@ export function UnitWaterfall({
       <div className="relative flex h-full flex-col justify-start gap-[3px] overflow-hidden py-2 pl-3 pr-1">
         {visible.length === 0 ? (
           <span className="font-mono text-[9px] text-slate-600">
-            {running ? "spawn units…" : "sin unidades"}
+            {running ? "generando unidades…" : "sin unidades"}
           </span>
         ) : null}
         {visible.map((unit, index) => {

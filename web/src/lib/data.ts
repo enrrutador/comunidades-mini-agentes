@@ -97,7 +97,7 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 export const DEFAULT_RULES: Rule[] = [
-  { id: "r-no-autopay", name: "No auto-pay", desc: "Toda transacción que mueva dinero requiere aprobación humana.", active: true, severity: "alta", scope: "global" },
+  { id: "r-no-autopay", name: "Sin auto-pago", desc: "Toda transacción que mueva dinero requiere aprobación humana.", active: true, severity: "alta", scope: "global" },
   { id: "r-verify", name: "Verificar antes de publicar", desc: "Ninguna publicación sale sin pasar por el bot de verificación.", active: true, severity: "alta", scope: "global" },
   { id: "r-loops", name: "Máximo 3 loops por bot", desc: "Un bot no puede iterar más de 3 veces sobre la misma unidad.", active: true, severity: "media", scope: "global" },
 ];
@@ -126,9 +126,9 @@ export function initialLogs(): LogEntry[] {
       second: "2-digit",
     });
   return [
-    { id: "l1", time: stamp(240000), source: "pulse", message: `mesh online · ${ALL_BOTS.length} bots · ${CHARACTERS.length} personajes`, color: "green" },
+    { id: "l1", time: stamp(240000), source: "pulse", message: `mesh en línea · ${ALL_BOTS.length} bots · ${CHARACTERS.length} personajes`, color: "green" },
     { id: "l2", time: stamp(150000), source: "router", message: "3 reglas activas · verificación habilitada", color: "yellow" },
-    { id: "l3", time: stamp(60000), source: "check", message: "pass conditions cargadas · auto-pay off", color: "purple" },
+    { id: "l3", time: stamp(60000), source: "check", message: "condiciones de pase cargadas · auto-pago apagado", color: "purple" },
     { id: "l4", time: stamp(10000), source: "output", message: "esperando instrucciones del operador", color: "cyan" },
   ];
 }

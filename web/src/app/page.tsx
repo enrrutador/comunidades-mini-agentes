@@ -7,21 +7,19 @@ import { BotsView } from "@/components/BotsView";
 import { RunsView } from "@/components/RunsView";
 import { RulesView } from "@/components/RulesView";
 import { MemoryView } from "@/components/MemoryView";
-import { CommunityView } from "@/components/CommunityView";
 import { FacebookView } from "@/components/FacebookView";
 import { SettingsModal } from "@/components/SettingsModal";
 import { BotConfigModal, unitCode } from "@/components/BotCard";
 import { CharacterConfigModal } from "@/components/CharacterCard";
 import { useStored } from "@/lib/useStored";
 import { activeProvider, callLLM, llmConfigured } from "@/lib/llm";
-import { listComunidades, listPersonajes, createComunidad, createPersonaje, updatePersonaje, loginAdmin, logoutAdmin, isAuthenticated, getMe } from "@/lib/api";
+import { listPersonajes, createPersonaje, updatePersonaje, loginAdmin, logoutAdmin, isAuthenticated, getMe } from "@/lib/api";
 import type { AuthUser } from "@/lib/api";
 import type { Comunidad as ApiComunidad, Personaje as ApiPersonaje } from "@/lib/api";
 import { timeNow, uid } from "@/lib/theme";
 import {
   ALL_BOTS,
   CHARACTERS,
-  COMMUNITIES,
   DEFAULT_RULES,
   DEFAULT_SETTINGS,
   INITIAL_MEMORY,
@@ -58,18 +56,14 @@ function demoUnitContent(persona: Character | undefined, label: string): string 
   return `${base} (${label})`;
 }
 
-function unitSystem(
-  bot: Bot,
-  persona: Character | undefined,
-  workspaceName: string,
-): string {
+function unitSystem(bot: Bot, persona: Character | undefined): string {
   const lines = [
     `Sos ${bot.name}, un bot del mesh de Pulse OS.`,
     bot.instructions ? `Instrucciones: ${bot.instructions}` : `Rol: ${bot.desc}`,
   ];
   if (persona) {
     lines.push(
-      `Operás como ${persona.name} en la comunidad "${workspaceName}". Temperamento: ${persona.temperamento}. Temas: ${persona.temas.join(", ")}. Bio: ${persona.bio}. Escribí como una persona real de esa comunidad, en primera persona.`,
+      `Operás como ${persona.name} en Pulse OS, una red social con perfiles propios. Temperamento: ${persona.temperamento}. Temas: ${persona.temas.join(", ")}. Bio: ${persona.bio}. Escribí como una persona real, en primera persona.`,
     );
   }
   lines.push(
@@ -97,7 +91,6 @@ export default function PulseOS() {
     "pulse.characters.v1",
     [...CHARACTERS],
   );
-  const [communities, setCommunities] = useStored("pulse.communities.v1", [...COMMUNITIES]);
   const [accounts, setAccounts] = useStored(
     "pulse.accounts.v1",
     [...SOCIAL_ACCOUNTS],
@@ -105,7 +98,6 @@ export default function PulseOS() {
   const [runs, setRuns] = useStored<RunRecord[]>("pulse.runs.v1", [
     ...INITIAL_RUNS,
   ]);
-  const [workspace, setWorkspace] = useStored("pulse.workspace.v1", "pulse-os");
 
   const [logs, setLogs] = useState<LogEntry[]>(initialLogs);
   const [run, setRun] = useState<RunState>({
@@ -134,9 +126,6 @@ export default function PulseOS() {
   const providerName = provider?.name ?? "sin proveedor";
   const modelName = provider?.model ?? "sin modelo";
   const configured = llmConfigured(settings);
-  const workspaceName =
-    communities.find((community) => community.id === workspace)?.name ??
-    workspace;
 
   useEffect(() => {
     if (isAuthenticated()) {
@@ -154,21 +143,6 @@ export default function PulseOS() {
     if (!mounted) return;
     let cancelled = false;
     (async () => {
-      try {
-        const apiComunidades = await listComunidades();
-        if (cancelled || !apiComunidades.length) return;
-        const mapped: Community[] = apiComunidades.map((c) => ({
-          id: c.id,
-          name: c.nombre,
-          color: "cyan" as Color,
-          agents: 0,
-          tematica: c.tematica ?? undefined,
-          descripcion: c.descripcion_interna ?? undefined,
-        }));
-        setCommunities(mapped);
-      } catch {
-        // Backend no disponible, usar datos locales
-      }
       try {
         const apiPersonajes = await listPersonajes();
         if (cancelled || !apiPersonajes.length) return;
@@ -308,9 +282,7 @@ export default function PulseOS() {
       setRuns((prev) => [record, ...prev].slice(0, 30));
     }
 
-    const personasPool = characters.filter(
-      (character) => character.communityId === workspace,
-    );
+    const personasPool = characters;
 
     async function executeUnit(
       bot: Bot,
@@ -325,7 +297,7 @@ export default function PulseOS() {
         const content = await callLLM(
           `Tarea del operador: ${prompt}\nUnidad a ejecutar: ${label}`,
           settings,
-          { system: unitSystem(bot, persona, workspaceName), maxTokens: 240 },
+          { system: unitSystem(bot, persona), maxTokens: 240 },
         );
         if (!content || content.trim().length < 30) {
           return {
@@ -440,7 +412,7 @@ export default function PulseOS() {
         } else {
           await createPersonaje({
             nombre: character.name,
-            comunidad_id: character.communityId,
+            comunidad_id: character.communityId || "gatos",
             biografia_interna: character.bio,
             nivel_actividad: character.actividad,
             personalidad: { temperamento: character.temperamento, temas_preferidos: character.temas },
@@ -472,15 +444,20 @@ export default function PulseOS() {
     addLog("social", "estado de la Página actualizado", "pink");
   }
 
-  function selectWorkspace(id: string) {
-    setWorkspace(id);
-    const name = communities.find((community) => community.id === id)?.name;
-    addLog("workspace", `workspace activo · ${name ?? id}`, "cyan");
-  }
-
   function saveSettings(next: Settings) {
     setSettings(next);
     addLog("config", "configuración multiproveedor guardada", "green");
+  }
+
+  function setModel(model: string) {
+    setSettings((current) => ({
+      ...current,
+      providers: current.providers.map((item) =>
+        item.id === current.activeProviderId
+          ? { ...item, model: model.trim() }
+          : item,
+      ),
+    }));
   }
 
   function refreshMesh() {
@@ -509,8 +486,6 @@ export default function PulseOS() {
       <Header
         activeTab={activeTab}
         onTab={setActiveTab}
-        workspace={workspace}
-        onWorkspace={selectWorkspace}
         onRefresh={refreshMesh}
         stats={{
           online: bots.filter((bot) => bot.enabled).length,
@@ -536,10 +511,10 @@ export default function PulseOS() {
             configured={configured}
             providerName={providerName}
             activeModel={modelName}
+            models={provider?.models ?? []}
+            onSetModel={setModel}
             llmReply={llmReply}
             llmError={llmError}
-            workspaceId={workspace}
-            workspaceName={workspaceName}
             onRun={startRun}
             onStop={stopRun}
             onOpenSettings={() => setSettingsOpen(true)}
@@ -564,20 +539,8 @@ export default function PulseOS() {
         ) : activeTab === "Facebook" ? (
           <FacebookView
             characters={characters}
-            workspaceId={workspace}
-            workspaceName={workspaceName}
           />
-        ) : (
-          <CommunityView
-            communities={communities}
-            characters={characters}
-            accounts={accounts}
-            workspaceId={workspace}
-            onSelectWorkspace={selectWorkspace}
-            onSaveCharacter={saveCharacter}
-            onToggleAccount={toggleAccount}
-          />
-        )}
+        ) : null}
       </main>
 
       <SettingsModal
