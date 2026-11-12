@@ -15,7 +15,7 @@ import re
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
@@ -26,6 +26,7 @@ import os
 logger = logging.getLogger(__name__)
 from app.db.models import Cuenta, Pagina, Personaje, Plataforma, Tarea, TareaEstado
 from app.db.session import engine, get_session
+from app.services.browser import en_vivo
 from app.services.browser.manager import get_browser_manager
 from app.services.orchestration.executor import ejecutar_tarea
 
@@ -501,6 +502,69 @@ def login_visible(
         "message": "Navegador en vivo abierto en Facebook. Inicia sesion ahi.",
         "cuenta_id": cuenta_id,
     }
+
+
+# ---------- Navegador EN VIVO dentro de la app (screencast CDP) ----------
+
+class EntradaNavegador(BaseModel):
+    tipo: str
+    x: float | None = None
+    y: float | None = None
+    texto: str | None = None
+    tecla: str | None = None
+
+
+@router.post("/cuentas/{cuenta_id}/navegador-vivo/abrir")
+async def navegador_vivo_abrir(
+    cuenta_id: str, session: Session = Depends(get_session)
+):
+    """Abrir el navegador de la app en la vista de Facebook: el usuario
+    inicia sesion ahi adentro, sin ventanas externas."""
+    cuenta = session.get(Cuenta, cuenta_id)
+    if not cuenta:
+        raise HTTPException(status_code=404, detail="Cuenta no encontrada.")
+    cuenta.estado_conexion = "conectando"
+    cuenta.estado_autorizacion = "esperando inicio de sesion en el navegador de la app"
+    session.add(cuenta)
+    session.commit()
+    await en_vivo.iniciar(cuenta_id)
+    return {"status": "abierto", "cuenta_id": cuenta_id}
+
+
+@router.get("/cuentas/{cuenta_id}/navegador-vivo/frame")
+async def navegador_vivo_frame(cuenta_id: str):
+    sesion = en_vivo.SESIONES.get(cuenta_id)
+    if not sesion or not sesion.frame:
+        return Response(status_code=204)
+    return Response(
+        content=sesion.frame,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@router.get("/cuentas/{cuenta_id}/navegador-vivo/estado")
+def navegador_vivo_estado(cuenta_id: str):
+    sesion = en_vivo.SESIONES.get(cuenta_id)
+    return {
+        "activa": bool(sesion and sesion.activa),
+        "conectado": bool(sesion and sesion.conectado),
+    }
+
+
+@router.post("/cuentas/{cuenta_id}/navegador-vivo/entrada")
+async def navegador_vivo_entrada(cuenta_id: str, datos: EntradaNavegador):
+    sesion = en_vivo.SESIONES.get(cuenta_id)
+    if not sesion:
+        raise HTTPException(status_code=404, detail="El navegador de la app no esta abierto.")
+    await en_vivo.entrada(sesion, datos.model_dump(exclude_none=True))
+    return {"status": "ok"}
+
+
+@router.post("/cuentas/{cuenta_id}/navegador-vivo/cerrar")
+async def navegador_vivo_cerrar(cuenta_id: str):
+    await en_vivo.cerrar(cuenta_id)
+    return {"status": "cerrado"}
 
 
 @router.get("/cuentas/{cuenta_id}/estado")

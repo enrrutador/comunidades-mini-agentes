@@ -90,6 +90,12 @@ class FacebookBrowserConnector:
             timeout=20000,
         )
 
+    async def sesion_cdp(self):
+        """Sesion CDP de la pagina actual (screencast + entrada remota)."""
+        if not self._context or not self._page:
+            await self.start()
+        return await self._context.new_cdp_session(self._page)
+
     async def tiene_sesion(self) -> bool:
         """True si ya hay cookie c_user, SIN navegar (no interfiere con
         lo que el usuario esta escribiendo en el navegador en vivo)."""

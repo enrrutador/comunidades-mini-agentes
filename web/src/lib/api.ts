@@ -500,3 +500,34 @@ export function loginVisibleFB(cuentaId: string) {
     { method: "POST" },
   );
 }
+
+export function abrirNavegadorVivoFB(cuentaId: string) {
+  return request<{ status: string }>(`/facebook/cuentas/${cuentaId}/navegador-vivo/abrir`, { method: "POST" });
+}
+
+export function entradaNavegadorVivoFB(
+  cuentaId: string,
+  datos: { tipo: string; x?: number; y?: number; texto?: string; tecla?: string },
+) {
+  return request<{ status: string }>(`/facebook/cuentas/${cuentaId}/navegador-vivo/entrada`, {
+    method: "POST",
+    body: JSON.stringify(datos),
+  });
+}
+
+export function estadoNavegadorVivoFB(cuentaId: string) {
+  return request<{ activa: boolean; conectado: boolean }>(`/facebook/cuentas/${cuentaId}/navegador-vivo/estado`);
+}
+
+export function cerrarNavegadorVivoFB(cuentaId: string) {
+  return request<{ status: string }>(`/facebook/cuentas/${cuentaId}/navegador-vivo/cerrar`, { method: "POST" });
+}
+
+export async function frameNavegadorVivoFB(cuentaId: string): Promise<Blob | null> {
+  const token = getAuthToken();
+  const res = await fetch(`${API_BASE}/facebook/cuentas/${cuentaId}/navegador-vivo/frame`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok || res.status === 204) return null;
+  return res.blob();
+}

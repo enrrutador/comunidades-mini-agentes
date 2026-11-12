@@ -29,10 +29,13 @@ import {
   listCuentasFB,
   listPaginasFB,
   estadoCuentaFB,
-  getNavegadorFB,
+  abrirNavegadorVivoFB,
+  cerrarNavegadorVivoFB,
+  entradaNavegadorVivoFB,
+  estadoNavegadorVivoFB,
+  frameNavegadorVivoFB,
   importarSesionFB,
   loginCuentaFB,
-  loginVisibleFB,
   publicarPostFB,
   reaccionarFB,
   type CuentaFB,
@@ -288,7 +291,12 @@ export function FacebookView({ characters }: { characters: Character[] }) {
   const [busy, setBusy] = useState(false);
   const [modalCuenta, setModalCuenta] = useState(false);
   const [modalSesion, setModalSesion] = useState<CuentaFB | null>(null);
-  const [navegador, setNavegador] = useState<{ visible: boolean; url: string | null }>({ visible: false, url: null });
+  const [vivo, setVivo] = useState<CuentaFB | null>(null);
+  const [vivoOk, setVivoOk] = useState(false);
+  const [vivoTexto, setVivoTexto] = useState("");
+  const vivoImgRef = useRef<HTMLImageElement | null>(null);
+  const vivoTimersRef = useRef<number[]>([]);
+  const vivoUrlRef = useRef<string | null>(null);
   const [sesionTexto, setSesionTexto] = useState("");
   const [sesionError, setSesionError] = useState("");
   const [draft, setDraft] = useState({ nombre_identificador: "", email_o_usuario: "", password: "", totp_secret: "" });
@@ -306,7 +314,6 @@ export function FacebookView({ characters }: { characters: Character[] }) {
   }, []);
 
   const refresh = useCallback(async () => {
-    void getNavegadorFB().then(setNavegador).catch(() => {});
     setBusy(true);
     try {
       const [paginas, listaCuentas] = await Promise.all([
@@ -507,20 +514,13 @@ export function FacebookView({ characters }: { characters: Character[] }) {
   }
 
   function handleLogin(cuenta: CuentaFB) {
-    pushFeed({
-      tipo: "post",
-      perfil: cuenta.nombre_identificador,
-      pagina: navegador.visible
-        ? "navegador en vivo abierto: iniciá sesión en Facebook desde el enlace «NAVEGADOR EN VIVO» de arriba…"
-        : "abriendo navegador…",
-      status: "en_cola",
-    });
+    pushFeed({ tipo: "post", perfil: cuenta.nombre_identificador, pagina: "abriendo navegador…", status: "en_cola" });
     setCuentas((current) =>
       current.map((item) =>
         item.id === cuenta.id ? { ...item, estado_conexion: "conectando" } : item,
       ),
     );
-    void (navegador.visible ? loginVisibleFB(cuenta.id) : loginCuentaFB(cuenta.id))
+    void loginCuentaFB(cuenta.id)
       .then(() => new Promise<void>((resolve) => setTimeout(resolve, 2500)))
       .then(async () => {
         // El login corre en segundo plano: sondear hasta conectado/error
@@ -632,6 +632,82 @@ export function FacebookView({ characters }: { characters: Character[] }) {
       })
       .finally(() => setBusy(false));
   }
+
+  function pararVivo() {
+    vivoTimersRef.current.forEach((id) => window.clearInterval(id));
+    vivoTimersRef.current = [];
+    if (vivoUrlRef.current) {
+      URL.revokeObjectURL(vivoUrlRef.current);
+      vivoUrlRef.current = null;
+    }
+  }
+
+  function cerrarVivo() {
+    const cuenta = vivo;
+    pararVivo();
+    setVivo(null);
+    setVivoOk(false);
+    setVivoTexto("");
+    if (cuenta) void cerrarNavegadorVivoFB(cuenta.id).catch(() => {});
+  }
+
+  function abrirVivo(cuenta: CuentaFB) {
+    setVivo(cuenta);
+    setVivoOk(false);
+    setVivoTexto("");
+    pararVivo();
+    void abrirNavegadorVivoFB(cuenta.id)
+      .then(() => {
+        const frameTimer = window.setInterval(() => {
+          void frameNavegadorVivoFB(cuenta.id).then((blob) => {
+            if (!blob || !vivoImgRef.current) return;
+            if (vivoUrlRef.current) URL.revokeObjectURL(vivoUrlRef.current);
+            vivoUrlRef.current = URL.createObjectURL(blob);
+            vivoImgRef.current.src = vivoUrlRef.current;
+          }).catch(() => {});
+        }, 350);
+        const estadoTimer = window.setInterval(() => {
+          void estadoNavegadorVivoFB(cuenta.id).then((e) => {
+            if (e.conectado) {
+              setVivoOk(true);
+              void refresh();
+              window.setTimeout(() => cerrarVivo(), 2500);
+            }
+          }).catch(() => {});
+        }, 2000);
+        vivoTimersRef.current = [frameTimer, estadoTimer];
+      })
+      .catch((error) => {
+        pushFeed({ tipo: "post", perfil: cuenta.nombre_identificador, pagina: `No se pudo abrir el navegador de la app: ${error instanceof Error ? error.message : String(error)}`, status: "error" });
+      });
+  }
+
+  function vivoClick(e: React.MouseEvent<HTMLImageElement>) {
+    if (!vivo) return;
+    const img = e.currentTarget;
+    const rect = img.getBoundingClientRect();
+    if (!img.naturalWidth || !rect.width) return;
+    const x = ((e.clientX - rect.left) / rect.width) * img.naturalWidth;
+    const y = ((e.clientY - rect.top) / rect.height) * img.naturalHeight;
+    void entradaNavegadorVivoFB(vivo.id, { tipo: "click", x, y }).catch(() => {});
+  }
+
+  function vivoInsertar() {
+    if (!vivo || !vivoTexto) return;
+    void entradaNavegadorVivoFB(vivo.id, { tipo: "texto", texto: vivoTexto }).catch(() => {});
+    setVivoTexto("");
+  }
+
+  function vivoTecla(tecla: string) {
+    if (!vivo) return;
+    void entradaNavegadorVivoFB(vivo.id, { tipo: "tecla", tecla }).catch(() => {});
+  }
+
+  useEffect(() => {
+    return () => {
+      vivoTimersRef.current.forEach((id) => window.clearInterval(id));
+    };
+  }, []);
 
   function handleDetectarPaginas(cuenta: CuentaFB) {
     pushFeed({ tipo: "post", perfil: cuenta.nombre_identificador, pagina: "detectando Páginas…", status: "en_cola" });
@@ -749,16 +825,6 @@ export function FacebookView({ characters }: { characters: Character[] }) {
                 : `${cuentasConectadas}/${cuentas.length} conectadas`}
             </span>
           </div>
-          {navegador.visible && navegador.url ? (
-            <a
-              href={navegador.url}
-              target="_blank"
-              rel="noreferrer"
-              className="mb-2 flex items-center justify-center gap-2 rounded-lg border border-neon-cyan/40 bg-neon-cyan/10 px-4 py-2.5 text-center font-mono text-[10px] font-semibold tracking-wider text-neon-cyan transition hover:bg-neon-cyan/20"
-            >
-              ▸ ABRIR EL NAVEGADOR EN VIVO DE LA APP (ahí iniciás sesión vos)
-            </a>
-          ) : null}
           {cuentas.length === 0 ? (
             <div className="rounded-lg border border-dashed border-white/10 px-4 py-6 text-center">
               <p className="font-mono text-[10px] leading-relaxed text-slate-500">
@@ -813,12 +879,20 @@ export function FacebookView({ characters }: { characters: Character[] }) {
                     <div className="mt-2.5 flex flex-wrap gap-1.5">
                       <button
                         type="button"
-                        onClick={() => handleLogin(cuenta)}
+                        onClick={() => abrirVivo(cuenta)}
                         className="rounded border border-neon-green/30 bg-neon-green/10 px-2 py-1 font-mono text-[9px] text-neon-green transition hover:bg-neon-green/20"
                       >
                         {cuenta.estado_conexion === "conectado"
                           ? "reconectar"
                           : "conectar (login)"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleLogin(cuenta)}
+                        title="Que la app intente sola con la contraseña guardada"
+                        className="rounded border border-white/10 px-2 py-1 font-mono text-[9px] text-slate-400 transition hover:border-white/30 hover:text-slate-200"
+                      >
+                        automático
                       </button>
                       <button
                         type="button"
@@ -1002,6 +1076,69 @@ export function FacebookView({ characters }: { characters: Character[] }) {
           </section>
         </div>
       </div>
+
+      {vivo ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-3">
+          <div className="flex max-h-full w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-white/15 bg-[#0a0a14]">
+            <div className="flex items-center justify-between border-b border-white/10 px-4 py-2.5">
+              <span className="font-mono text-[10px] tracking-widest text-neon-cyan">
+                NAVEGADOR DE LA APP — {vivo.nombre_identificador}
+              </span>
+              <button type="button" onClick={cerrarVivo} className="btn-ghost px-2 py-1 text-xs">
+                ✕ cerrar
+              </button>
+            </div>
+            {vivoOk ? (
+              <div className="px-4 py-10 text-center">
+                <p className="text-[15px] font-semibold text-neon-green">¡Sesión guardada!</p>
+                <p className="mt-1 font-mono text-[10px] text-slate-400">
+                  La cuenta quedó conectada. Esto se cierra solo…
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="overflow-auto bg-black">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    ref={vivoImgRef}
+                    alt="Navegador de la app: pantalla de inicio de sesión de Facebook"
+                    onClick={vivoClick}
+                    className="w-full cursor-pointer select-none"
+                  />
+                </div>
+                <div className="border-t border-white/10 px-3 py-2.5">
+                  <p className="mb-2 font-mono text-[9px] leading-relaxed text-slate-500">
+                    Tocá un campo en la pantalla del navegador, escribí acá abajo con el
+                    teclado de tu teléfono y tocá «insertar». Cuando la sesión entre, se
+                    guarda sola y la cuenta queda conectada.
+                  </p>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <input
+                      value={vivoTexto}
+                      onChange={(e) => setVivoTexto(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") vivoInsertar();
+                      }}
+                      placeholder="escribí acá y tocá insertar…"
+                      className="min-w-0 flex-1 rounded border border-white/15 bg-black/40 px-2.5 py-1.5 text-[12px] text-slate-100 outline-none placeholder:text-slate-600 focus:border-neon-cyan/50"
+                    />
+                    <button
+                      type="button"
+                      onClick={vivoInsertar}
+                      className="rounded border border-neon-cyan/40 bg-neon-cyan/10 px-3 py-1.5 font-mono text-[10px] text-neon-cyan transition hover:bg-neon-cyan/20"
+                    >
+                      insertar
+                    </button>
+                    <button type="button" onClick={() => vivoTecla("Backspace")} className="rounded border border-white/15 px-2.5 py-1.5 font-mono text-[10px] text-slate-300">⌫</button>
+                    <button type="button" onClick={() => vivoTecla("Enter")} className="rounded border border-white/15 px-2.5 py-1.5 font-mono text-[10px] text-slate-300">Enter ⏎</button>
+                    <button type="button" onClick={() => vivoTecla("Tab")} className="rounded border border-white/15 px-2.5 py-1.5 font-mono text-[10px] text-slate-300">Tab ⇥</button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      ) : null}
 
       <Modal
         open={modalSesion !== null}
