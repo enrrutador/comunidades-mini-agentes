@@ -724,6 +724,14 @@ export function FacebookView({ characters }: { characters: Character[] }) {
                         </span>
                       </span>
                     </div>
+                    {cuenta.estado_conexion === "error" &&
+                    cuenta.estado_autorizacion &&
+                    cuenta.estado_autorizacion !== "pendiente" ? (
+                      <div className="mt-2 rounded border border-neon-red/25 bg-neon-red/10 px-2 py-1.5 text-[10px] leading-snug text-rose-200">
+                        <span className="font-semibold">Motivo:</span>{" "}
+                        {cuenta.estado_autorizacion}
+                      </div>
+                    ) : null}
                     <div className="mt-2.5 flex flex-wrap gap-1.5">
                       <button
                         type="button"

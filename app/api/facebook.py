@@ -217,6 +217,7 @@ def _ejecutar_login(cuenta_id: str) -> None:
         cuenta = session.get(Cuenta, cuenta_id)
         if cuenta:
             cuenta.estado_conexion = "error"
+            cuenta.estado_autorizacion = mensaje
             session.add(cuenta)
             session.commit()
 
@@ -241,11 +242,16 @@ def _ejecutar_login(cuenta_id: str) -> None:
                         state = await connector.get_storage_state()
                         cuenta.storage_state_cifrado = cifrar(json.dumps(state))
                         cuenta.estado_conexion = "conectado"
+                        cuenta.estado_autorizacion = "autorizado"
                         cuenta.ultima_conexion = datetime.now(timezone.utc)
                         logger.info("Login OK %s", cuenta_id)
                     else:
                         cuenta.estado_conexion = "error"
-                        logger.warning("Login rechazado %s", cuenta_id)
+                        try:
+                            cuenta.estado_autorizacion = await connector.diagnosticar_login()
+                        except Exception:
+                            cuenta.estado_autorizacion = "Login rechazado sin diagnostico."
+                        logger.warning("Login rechazado %s: %s", cuenta_id, cuenta.estado_autorizacion)
                 finally:
                     await manager.release(cuenta_id)
 

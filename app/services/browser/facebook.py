@@ -140,6 +140,46 @@ class FacebookBrowserConnector:
             logger.error(f"Error en login: {e}")
             return False
 
+    async def diagnosticar_login(self) -> str:
+        """Explicar en palabras simples por que Facebook rechazo el login.
+
+        Lee la URL y el texto visible de la pagina donde quedo el
+        navegador tras el intento. Nunca lanza: ante cualquier problema
+        devuelve una descripcion generica con la URL final.
+        """
+        if not self._page:
+            return "El navegador no llego a abrir la pagina de login."
+        try:
+            url = self._page.url or ""
+        except Exception:
+            url = ""
+        texto = ""
+        alerta = ""
+        try:
+            texto = _norm(await self._page.inner_text("body", timeout=3000))
+        except Exception:
+            pass
+        try:
+            el = await self._page.query_selector("[role='alert']")
+            if el:
+                alerta = " ".join((await el.inner_text()).split())[:180]
+        except Exception:
+            pass
+        if "checkpoint" in url:
+            return ("Facebook pidio una verificacion de seguridad (checkpoint): "
+                    "el ingreso desde esta red quedo marcado para revision. "
+                    "No es un error de contrasena.")
+        if ("contrasena" in texto and ("incorrecta" in texto or "no es correcta" in texto or "no coincide" in texto)) or \
+                "password you entered is incorrect" in texto or "incorrect password" in texto:
+            return "Facebook rechazo la contrasena: no es la contrasena actual de la cuenta."
+        if "two_step" in url or "approvals" in url or "codigo de seguridad" in texto or \
+                "autenticacion en dos pasos" in texto or "ingresa el codigo" in texto:
+            return ("Facebook pide el codigo de verificacion en dos pasos (2FA). "
+                    "Carga el codigo TOTP al registrar la cuenta.")
+        if alerta:
+            return f"Facebook mostro: {alerta}"
+        return f"No se confirmo la sesion. La pagina quedo en: {url or 'sin URL'}"
+
     async def _human_delay(self, min_s: float = 2.0, max_s: float = 5.0):
         """Delay aleatorio para simular comportamiento humano."""
         await asyncio.sleep(random.uniform(min_s, max_s))
