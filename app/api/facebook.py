@@ -26,6 +26,7 @@ import os
 logger = logging.getLogger(__name__)
 from app.db.models import Cuenta, Pagina, Personaje, Plataforma, Tarea, TareaEstado
 from app.db.session import engine, get_session
+from app.services import sincronizar
 from app.services.browser import en_vivo
 from app.services.browser.manager import get_browser_manager
 from app.services.orchestration.executor import ejecutar_tarea
@@ -263,6 +264,14 @@ def _ejecutar_login(cuenta_id: str) -> None:
         except Exception as error:  # noqa: BLE001
             _marcar_error(session, str(error))
 
+    # Al conectar, la app sola trae las Paginas y arma los personajes.
+    if cuenta.estado_conexion == "conectado":
+        try:
+            asyncio.run(sincronizar.al_conectar(cuenta_id))
+        except Exception as error:  # noqa: BLE001
+            logger.warning("Sincronizacion al conectar %s: %s", cuenta_id, error)
+
+
 
 def _ejecutar_verificacion_sesion(cuenta_id: str) -> None:
     """Tarea en segundo plano: verificar una sesion importada (storage state).
@@ -313,6 +322,13 @@ def _ejecutar_verificacion_sesion(cuenta_id: str) -> None:
             cuenta.estado_autorizacion = f"Error verificando la sesion: {error}"
         session.add(cuenta)
         session.commit()
+    # Al conectar, la app sola trae las Paginas y arma los personajes.
+    if cuenta.estado_conexion == "conectado":
+        try:
+            asyncio.run(sincronizar.al_conectar(cuenta_id))
+        except Exception as error:  # noqa: BLE001
+            logger.warning("Sincronizacion al conectar %s: %s", cuenta_id, error)
+
 
 
 @router.post("/cuentas/{cuenta_id}/login")
@@ -466,6 +482,13 @@ def _ejecutar_login_visible(cuenta_id: str) -> None:
             cuenta.estado_autorizacion = f"Error en el login en vivo: {error}"
         session.add(cuenta)
         session.commit()
+    # Al conectar, la app sola trae las Paginas y arma los personajes.
+    if cuenta.estado_conexion == "conectado":
+        try:
+            asyncio.run(sincronizar.al_conectar(cuenta_id))
+        except Exception as error:  # noqa: BLE001
+            logger.warning("Sincronizacion al conectar %s: %s", cuenta_id, error)
+
 
 
 @router.get("/navegador")
@@ -654,53 +677,9 @@ def detectar_paginas(
     if cuenta.estado_conexion != "conectado":
         raise HTTPException(status_code=400, detail="La cuenta debe estar conectada primero.")
 
-    storage_state = None
-    if cuenta.storage_state_cifrado:
-        try:
-            storage_state = json.loads(descifrar(cuenta.storage_state_cifrado))
-        except Exception:
-            storage_state = None
-
-    async def _run() -> list[dict]:
-        manager = get_browser_manager()
-        connector = await manager.get_connector(cuenta_id, storage_state=storage_state)
-        try:
-            if not await connector.is_logged_in():
-                if cuenta.email_usuario and cuenta.password_cifrado:
-                    await connector.login(
-                        cuenta.email_usuario,
-                        descifrar(cuenta.password_cifrado),
-                        descifrar(cuenta.totp_secret_cifrado) if cuenta.totp_secret_cifrado else None,
-                    )
-            return await connector.listar_paginas_administradas()
-        finally:
-            await manager.release(cuenta_id)
-
-    encontradas = asyncio.run(_run())
-
-    nuevas = 0
-    for item in encontradas:
-        id_plat = item.get("id_plataforma") or item.get("nombre")
-        existing = session.exec(
-            select(Pagina).where(Pagina.cuenta_id == cuenta_id, Pagina.id_plataforma == id_plat)
-        ).first()
-        if existing:
-            existing.nombre_publico = item.get("nombre") or existing.nombre_publico
-            existing.url = item.get("url") or existing.url
-            session.add(existing)
-        else:
-            session.add(
-                Pagina(
-                    cuenta_id=cuenta.id,
-                    id_plataforma=id_plat,
-                    nombre_publico=item.get("nombre") or "Sin nombre",
-                    url=item.get("url"),
-                    estado_conexion="conectado",
-                    capacidades={"publicar": True, "comentar": True, "reaccionar": True},
-                )
-            )
-            nuevas += 1
-    session.commit()
+    encontradas = asyncio.run(sincronizar.detectar_paginas(cuenta))
+    sincronizar.guardar_paginas(session, cuenta_id, encontradas)
+    sincronizar.sincronizar_personajes(session, cuenta_id)
 
     paginas = session.exec(select(Pagina).where(Pagina.cuenta_id == cuenta_id)).all()
     return [

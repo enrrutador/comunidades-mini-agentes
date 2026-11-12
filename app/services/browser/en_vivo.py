@@ -117,6 +117,14 @@ async def _vigilar(sesion: SesionViva) -> None:
                         cuenta.ultima_conexion = datetime.now(timezone.utc)
                         db.add(cuenta)
                         db.commit()
+                # Con la sesion ya guardada, la app trae sola las
+                # Paginas del perfil y arma los personajes.
+                try:
+                    from app.services import sincronizar
+
+                    await sincronizar.al_conectar(sesion.cuenta_id)
+                except Exception as error:  # noqa: BLE001
+                    logger.warning("Sincronizacion tras el navegador de la app: %s", error)
                 sesion.conectado = True
                 logger.info("Navegador de la app: sesion guardada %s", sesion.cuenta_id)
                 return
