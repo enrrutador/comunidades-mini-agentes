@@ -1,4 +1,5 @@
 # ============ PULSE OS: LEVANTAR EL PROGRAMA (COMPLETO) ============
+# v6 (2026-11-12): vigia que revisa backend, web y tunel y los levanta solos si se caen.
 import subprocess, sys, os, time, re, urllib.request
 
 BASE_NUEVA = False   # True = borra la base anterior y arranca de cero
@@ -42,7 +43,7 @@ def hay(cmd):
     return subprocess.run(f"which {cmd}", shell=True, capture_output=True).returncode == 0
 
 # ---------- 0: limpieza total de corridas anteriores ----------
-run("pkill -f cloudflared ; pkill -f 'uvicorn app.main' ; pkill -f 'next start' ; pkill -f websockify ; pkill x11vnc ; pkill Xvfb ; sleep 2")
+run("pkill -f vigia.py ; pkill -f cloudflared ; pkill -f 'uvicorn app.main' ; pkill -f 'next start' ; pkill -f websockify ; pkill x11vnc ; pkill Xvfb ; sleep 2")
 
 # ---------- 1: repo + dependencias del backend ----------
 os.chdir(WORK)
@@ -113,6 +114,85 @@ if not url:
     print("El tunel no salio; reintentando una vez...")
     run("pkill -f cloudflared ; sleep 3")
     url = intentar_tunel()
+
+# ---------- 6: vigia (si un proceso se cae, lo levanta solo) ----------
+codigo_vigia = '''
+import subprocess, time, urllib.request
+
+WORK = "/kaggle/working"
+REPO = WORK + "/comunidades-mini-agentes"
+PY = "__PYTHON__"
+LOG = WORK + "/vigia.log"
+
+def log(msg):
+    try:
+        with open(LOG, "a") as f:
+            f.write(time.strftime("%H:%M:%S ") + msg + "\\n")
+    except Exception:
+        pass
+
+def responde(url):
+    try:
+        with urllib.request.urlopen(url, timeout=4) as resp:
+            return resp.status == 200
+    except Exception:
+        return False
+
+def vivo(patron):
+    return subprocess.run("pgrep -f '" + patron + "'", shell=True, capture_output=True).returncode == 0
+
+def levantar_backend():
+    subprocess.Popen("nohup " + PY + " -m uvicorn app.main:app --host 0.0.0.0 --port 8000 > " + WORK + "/backend.log 2>&1 &", shell=True, cwd=REPO)
+
+def levantar_web():
+    subprocess.Popen("nohup npm run start > " + WORK + "/web.log 2>&1 &", shell=True, cwd=REPO + "/web")
+
+def levantar_tunel():
+    subprocess.Popen("nohup " + WORK + "/cloudflared tunnel --url http://localhost:3000 > " + WORK + "/tunnel.log 2>&1 &", shell=True, cwd=WORK)
+
+fallos = {"backend": 0, "web": 0}
+gracia = {"backend": 0.0, "web": 0.0}
+reinicios = {"backend": 0, "web": 0, "tunel": 0}
+log("vigia activo")
+while True:
+    time.sleep(15)
+    ahora = time.time()
+    if ahora > gracia["backend"]:
+        if responde("http://127.0.0.1:8000/docs"):
+            fallos["backend"] = 0
+        else:
+            fallos["backend"] += 1
+            if fallos["backend"] >= 3:
+                subprocess.run("pkill -f 'uvicorn app.main' ; sleep 2", shell=True)
+                levantar_backend()
+                reinicios["backend"] += 1
+                log("backend caido: reinicio nro " + str(reinicios["backend"]))
+                fallos["backend"] = 0
+                gracia["backend"] = ahora + 90
+    if ahora > gracia["web"]:
+        if responde("http://127.0.0.1:3000"):
+            fallos["web"] = 0
+        else:
+            fallos["web"] += 1
+            if fallos["web"] >= 3:
+                subprocess.run("pkill -f 'next start' ; sleep 2", shell=True)
+                levantar_web()
+                reinicios["web"] += 1
+                log("web caida: reinicio nro " + str(reinicios["web"]))
+                fallos["web"] = 0
+                gracia["web"] = ahora + 90
+    if not vivo("cloudflared tunne[l]"):
+        subprocess.run("pkill -f cloudflared ; sleep 2", shell=True)
+        levantar_tunel()
+        reinicios["tunel"] += 1
+        log("tunel caido: reinicio nro " + str(reinicios["tunel"]) + " (el enlace publico cambia; el nuevo queda en tunnel.log)")
+        time.sleep(10)
+'''
+codigo_vigia = codigo_vigia.replace("__PYTHON__", sys.executable)
+with open(WORK + "/vigia.py", "w") as f:
+    f.write(codigo_vigia)
+subprocess.Popen(f"nohup {sys.executable} {WORK}/vigia.py > {WORK}/vigia-arranque.log 2>&1 &", shell=True)
+print("Vigia: ACTIVO (revisa backend, web y tunel cada 15 s; si algo se cae, lo levanta solo)")
 
 print("\n===============================================")
 print("RESUMEN  ->  Backend:", "OK" if backend_ok else "MAL", "| Web:", "OK" if web_ok else "MAL")
