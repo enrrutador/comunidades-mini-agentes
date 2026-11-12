@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
+  Eye,
+  EyeOff,
 
   Facebook,
   Heart,
@@ -280,6 +282,7 @@ export function FacebookView({ characters }: { characters: Character[] }) {
   const [busy, setBusy] = useState(false);
   const [modalCuenta, setModalCuenta] = useState(false);
   const [draft, setDraft] = useState({ nombre_identificador: "", email_o_usuario: "", password: "", totp_secret: "" });
+  const [showPw, setShowPw] = useState(false);
   const [postingOn, setPostingOn] = useState<string | null>(null);
   const [postText, setPostText] = useState("");
   const feedTopRef = useRef<HTMLDivElement>(null);
@@ -832,7 +835,7 @@ export function FacebookView({ characters }: { characters: Character[] }) {
             <button
               type="button"
               onClick={() => void handleRegistrarCuenta()}
-              disabled={busy || !draft.nombre_identificador || !draft.email_o_usuario || !draft.password}
+              disabled={busy || !draft.email_o_usuario || !draft.password}
               className="btn-primary"
             >
               {busy ? <Loader2 size={12} className="animate-spin" /> : null} Registrar
@@ -841,14 +844,6 @@ export function FacebookView({ characters }: { characters: Character[] }) {
         }
       >
         <div className="space-y-3">
-          <Field label="Nombre identificador">
-            <input
-              value={draft.nombre_identificador}
-              onChange={(event) => setDraft({ ...draft, nombre_identificador: event.target.value })}
-              placeholder="cuenta-gatos-01"
-              className="input-neon font-mono text-[11px]"
-            />
-          </Field>
           <Field label="Email o usuario de Facebook">
             <input
               value={draft.email_o_usuario}
@@ -858,12 +853,22 @@ export function FacebookView({ characters }: { characters: Character[] }) {
             />
           </Field>
           <Field label="Password">
-            <input
-              type="password"
-              value={draft.password}
-              onChange={(event) => setDraft({ ...draft, password: event.target.value })}
-              className="input-neon font-mono text-[11px]"
-            />
+            <div className="relative">
+              <input
+                type={showPw ? "text" : "password"}
+                value={draft.password}
+                onChange={(event) => setDraft({ ...draft, password: event.target.value })}
+                className="input-neon font-mono text-[11px] pr-9"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPw((v) => !v)}
+                aria-label={showPw ? "Ocultar password" : "Mostrar password"}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+              >
+                {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
           </Field>
           <Field label="Código TOTP (2FA)" hint="opcional">
             <input

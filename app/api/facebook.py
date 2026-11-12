@@ -11,6 +11,7 @@ de cuentas y la asignación de Páginas a personajes.
 
 import asyncio
 import json
+import re
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -43,7 +44,7 @@ def _personaje_id_de_pagina(session: Session, pagina_id: str):
 # ---------------------------------------------------------------------------
 
 class CuentaCreate(BaseModel):
-    nombre_identificador: str
+    nombre_identificador: Optional[str] = None
     email_o_usuario: str
     password: str
     totp_secret: Optional[str] = None  # para 2FA TOTP
@@ -110,15 +111,27 @@ def registrar_cuenta(
     Las credenciales se cifran antes de almacenar.
     TODO: implementar cifrado con Fernet (CREDENTIAL_ENCRYPTION_KEY).
     """
-    # Verificar que no exista una cuenta con el mismo identificador
-    existing = session.exec(
-        select(Cuenta).where(Cuenta.nombre_identificador == data.nombre_identificador)
-    ).first()
-    if existing:
-        raise HTTPException(status_code=409, detail="Ya existe una cuenta con ese nombre.")
+    # El nombre identificador es opcional: si no viene, se genera desde
+    # el email/usuario (la cuenta se reconoce igual en los listados).
+    identificador = (data.nombre_identificador or "").strip()
+    if identificador:
+        existing = session.exec(
+            select(Cuenta).where(Cuenta.nombre_identificador == identificador)
+        ).first()
+        if existing:
+            raise HTTPException(status_code=409, detail="Ya existe una cuenta con ese nombre.")
+    else:
+        base = re.sub(r"[^a-z0-9-]+", "-", data.email_o_usuario.split("@")[0].lower()).strip("-") or "cuenta"
+        identificador = base
+        n = 2
+        while session.exec(
+            select(Cuenta).where(Cuenta.nombre_identificador == identificador)
+        ).first():
+            identificador = f"{base}-{n}"
+            n += 1
 
     cuenta = Cuenta(
-        nombre_identificador=data.nombre_identificador,
+        nombre_identificador=identificador,
         plataforma=Plataforma.FACEBOOK,
         estado_conexion="desconectado",
         metodo_autenticacion="browser_credentials",
