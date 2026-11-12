@@ -10,6 +10,7 @@ Requiere: pip install playwright && playwright install chromium
 import asyncio
 import json
 import logging
+import os
 import random
 from typing import Optional
 
@@ -49,8 +50,12 @@ class FacebookBrowserConnector:
             raise RuntimeError("Playwright no está instalado. Ejecutá: pip install playwright && playwright install chromium")
 
         self._playwright = await async_playwright().start()
+        # Modo visible: con PULSE_NAVEGADOR_VISIBLE=1 el navegador se abre
+        # con pantalla (bajo Xvfb/VNC) para que el usuario inicie sesion
+        # EL MISMO desde su telefono o PC, a traves del enlace en vivo.
+        visible = os.environ.get("PULSE_NAVEGADOR_VISIBLE") == "1"
         self._browser = await self._playwright.chromium.launch(
-            headless=True,
+            headless=not visible,
             args=["--disable-blink-features=AutomationControlled"],
         )
         context_opts = {
@@ -73,6 +78,28 @@ class FacebookBrowserConnector:
             await self._browser.close()
         if self._playwright:
             await self._playwright.stop()
+
+    async def abrir_pagina_login(self) -> None:
+        """Abrir la pagina de login y DEJARLA ABIERTA para que el usuario
+        inicie sesion a mano en el navegador en vivo."""
+        if not self._page:
+            await self.start()
+        await self._page.goto(
+            "https://www.facebook.com/login",
+            wait_until="domcontentloaded",
+            timeout=20000,
+        )
+
+    async def tiene_sesion(self) -> bool:
+        """True si ya hay cookie c_user, SIN navegar (no interfiere con
+        lo que el usuario esta escribiendo en el navegador en vivo)."""
+        if not self._context:
+            return False
+        try:
+            cookies = await self._context.cookies("https://www.facebook.com")
+            return any(c["name"] == "c_user" for c in cookies)
+        except Exception:
+            return False
 
     async def get_storage_state(self) -> dict:
         """Exportar el storage state actual (cookies + localStorage)."""

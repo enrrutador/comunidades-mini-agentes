@@ -29,8 +29,10 @@ import {
   listCuentasFB,
   listPaginasFB,
   estadoCuentaFB,
+  getNavegadorFB,
   importarSesionFB,
   loginCuentaFB,
+  loginVisibleFB,
   publicarPostFB,
   reaccionarFB,
   type CuentaFB,
@@ -286,6 +288,7 @@ export function FacebookView({ characters }: { characters: Character[] }) {
   const [busy, setBusy] = useState(false);
   const [modalCuenta, setModalCuenta] = useState(false);
   const [modalSesion, setModalSesion] = useState<CuentaFB | null>(null);
+  const [navegador, setNavegador] = useState<{ visible: boolean; url: string | null }>({ visible: false, url: null });
   const [sesionTexto, setSesionTexto] = useState("");
   const [sesionError, setSesionError] = useState("");
   const [draft, setDraft] = useState({ nombre_identificador: "", email_o_usuario: "", password: "", totp_secret: "" });
@@ -303,6 +306,7 @@ export function FacebookView({ characters }: { characters: Character[] }) {
   }, []);
 
   const refresh = useCallback(async () => {
+    void getNavegadorFB().then(setNavegador).catch(() => {});
     setBusy(true);
     try {
       const [paginas, listaCuentas] = await Promise.all([
@@ -503,13 +507,20 @@ export function FacebookView({ characters }: { characters: Character[] }) {
   }
 
   function handleLogin(cuenta: CuentaFB) {
-    pushFeed({ tipo: "post", perfil: cuenta.nombre_identificador, pagina: "abriendo navegador…", status: "en_cola" });
+    pushFeed({
+      tipo: "post",
+      perfil: cuenta.nombre_identificador,
+      pagina: navegador.visible
+        ? "navegador en vivo abierto: iniciá sesión en Facebook desde el enlace «NAVEGADOR EN VIVO» de arriba…"
+        : "abriendo navegador…",
+      status: "en_cola",
+    });
     setCuentas((current) =>
       current.map((item) =>
         item.id === cuenta.id ? { ...item, estado_conexion: "conectando" } : item,
       ),
     );
-    void loginCuentaFB(cuenta.id)
+    void (navegador.visible ? loginVisibleFB(cuenta.id) : loginCuentaFB(cuenta.id))
       .then(() => new Promise<void>((resolve) => setTimeout(resolve, 2500)))
       .then(async () => {
         // El login corre en segundo plano: sondear hasta conectado/error
@@ -738,6 +749,16 @@ export function FacebookView({ characters }: { characters: Character[] }) {
                 : `${cuentasConectadas}/${cuentas.length} conectadas`}
             </span>
           </div>
+          {navegador.visible && navegador.url ? (
+            <a
+              href={navegador.url}
+              target="_blank"
+              rel="noreferrer"
+              className="mb-2 flex items-center justify-center gap-2 rounded-lg border border-neon-cyan/40 bg-neon-cyan/10 px-4 py-2.5 text-center font-mono text-[10px] font-semibold tracking-wider text-neon-cyan transition hover:bg-neon-cyan/20"
+            >
+              ▸ ABRIR EL NAVEGADOR EN VIVO DE LA APP (ahí iniciás sesión vos)
+            </a>
+          ) : null}
           {cuentas.length === 0 ? (
             <div className="rounded-lg border border-dashed border-white/10 px-4 py-6 text-center">
               <p className="font-mono text-[10px] leading-relaxed text-slate-500">

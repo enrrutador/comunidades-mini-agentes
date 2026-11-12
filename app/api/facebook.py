@@ -21,6 +21,7 @@ from sqlmodel import Session, select
 
 from app.core.crypto import cifrar, descifrar
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 from app.db.models import Cuenta, Pagina, Personaje, Plataforma, Tarea, TareaEstado
@@ -416,6 +417,88 @@ def importar_sesion(
     return {
         "status": "en_cola",
         "message": "Sesion importada. Verificando en segundo plano si sigue viva.",
+        "cuenta_id": cuenta_id,
+    }
+
+
+def _ejecutar_login_visible(cuenta_id: str) -> None:
+    """Login EN VIVO: abre el navegador de la app (visible por VNC) en la
+    pagina de Facebook y espera a que el USUARIO inicie sesion a mano.
+    Cuando aparece la cookie c_user, guarda la sesion y conecta la cuenta."""
+    with Session(engine) as session:
+        cuenta = session.get(Cuenta, cuenta_id)
+        if not cuenta:
+            return
+
+        async def _run() -> None:
+            manager = get_browser_manager()
+            try:
+                await manager.close(cuenta_id)
+            except Exception:
+                pass
+            connector = await manager.get_connector(cuenta_id)
+            try:
+                await connector.abrir_pagina_login()
+                for _ in range(120):  # hasta ~10 minutos
+                    await asyncio.sleep(5)
+                    if await connector.tiene_sesion():
+                        state = await connector.get_storage_state()
+                        cuenta.storage_state_cifrado = cifrar(json.dumps(state))
+                        cuenta.estado_conexion = "conectado"
+                        cuenta.estado_autorizacion = "autorizado (login en vivo)"
+                        cuenta.ultima_conexion = datetime.now(timezone.utc)
+                        logger.info("Login en vivo OK %s", cuenta_id)
+                        return
+                cuenta.estado_conexion = "error"
+                cuenta.estado_autorizacion = (
+                    "Se agoto el tiempo (10 min) sin que se complete el inicio "
+                    "de sesion en el navegador en vivo."
+                )
+                logger.warning("Login en vivo sin completar %s", cuenta_id)
+            finally:
+                await manager.release(cuenta_id)
+
+        try:
+            asyncio.run(_run())
+        except Exception as error:  # noqa: BLE001
+            cuenta.estado_conexion = "error"
+            cuenta.estado_autorizacion = f"Error en el login en vivo: {error}"
+        session.add(cuenta)
+        session.commit()
+
+
+@router.get("/navegador")
+def navegador_info():
+    """Si la app corre con navegador visible, su enlace en vivo."""
+    return {
+        "visible": os.environ.get("PULSE_NAVEGADOR_VISIBLE") == "1",
+        "url": os.environ.get("PULSE_NAVEGADOR_URL") or None,
+    }
+
+
+@router.post("/cuentas/{cuenta_id}/login-visible")
+def login_visible(
+    cuenta_id: str,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+):
+    """Abrir el navegador en vivo para que el usuario inicie sesion a mano."""
+    cuenta = session.get(Cuenta, cuenta_id)
+    if not cuenta:
+        raise HTTPException(status_code=404, detail="Cuenta no encontrada.")
+    if os.environ.get("PULSE_NAVEGADOR_VISIBLE") != "1":
+        raise HTTPException(
+            status_code=400,
+            detail="Esta copia de la app no tiene navegador visible activo.",
+        )
+    cuenta.estado_conexion = "conectando"
+    cuenta.estado_autorizacion = "esperando inicio de sesion en el navegador en vivo"
+    session.add(cuenta)
+    session.commit()
+    background_tasks.add_task(_ejecutar_login_visible, cuenta_id)
+    return {
+        "status": "en_cola",
+        "message": "Navegador en vivo abierto en Facebook. Inicia sesion ahi.",
         "cuenta_id": cuenta_id,
     }
 

@@ -489,3 +489,14 @@ export function importarSesionFB(
     { method: "POST", body: JSON.stringify(payload) },
   );
 }
+
+export function getNavegadorFB() {
+  return request<{ visible: boolean; url: string | null }>("/facebook/navegador");
+}
+
+export function loginVisibleFB(cuentaId: string) {
+  return request<{ status: string; message: string }>(
+    `/facebook/cuentas/${cuentaId}/login-visible`,
+    { method: "POST" },
+  );
+}
