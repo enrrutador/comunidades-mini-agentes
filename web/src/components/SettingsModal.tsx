@@ -53,6 +53,7 @@ export function SettingsModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [testingId, setTestingId] = useState<string | null>(null);
+  const [importingId, setImportingId] = useState<string | null>(null);
   const [testMsg, setTestMsg] = useState<
     Record<string, { ok: boolean; message: string } | undefined>
   >({});
@@ -92,6 +93,71 @@ export function SettingsModal({
       setError(errorText(e));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function importarModelos(proveedor: ProveedorLLM): Promise<void> {
+    setImportingId(proveedor.id);
+    setTestMsg((current) => ({ ...current, [proveedor.id]: undefined }));
+    try {
+      const result = await testProveedor(proveedor.id);
+      if (!result.ok) {
+        setTestMsg((current) => ({
+          ...current,
+          [proveedor.id]: {
+            ok: false,
+            message: result.error ?? "No se pudo conectar al proveedor para cargar sus modelos.",
+          },
+        }));
+        return;
+      }
+      const disponibles = result.modelos_disponibles ?? [];
+      if (disponibles.length === 0) {
+        setTestMsg((current) => ({
+          ...current,
+          [proveedor.id]: {
+            ok: true,
+            message: "Conexión OK · el proveedor respondió, pero no listó modelos.",
+          },
+        }));
+        return;
+      }
+      const actuales = await listModelos();
+      const yaEstan = new Set(
+        actuales
+          .filter((m) => m.proveedor_id === proveedor.id)
+          .map((m) => m.identificador_tecnico),
+      );
+      let nuevos = 0;
+      for (const ident of disponibles) {
+        if (yaEstan.has(ident)) continue;
+        await createModelo({
+          nombre: ident,
+          identificador_tecnico: ident,
+          proveedor_id: proveedor.id,
+          disponible: true,
+        });
+        nuevos += 1;
+      }
+      await reload();
+      onChanged();
+      setTestMsg((current) => ({
+        ...current,
+        [proveedor.id]: {
+          ok: true,
+          message:
+            nuevos > 0
+              ? `${nuevos} modelos cargados en la caja de chat (${disponibles.length} disponibles en total). Elegí el que quieras usar desde el selector del chat.`
+              : `Los ${disponibles.length} modelos de este proveedor ya estaban cargados en la caja de chat.`,
+        },
+      }));
+    } catch (e) {
+      setTestMsg((current) => ({
+        ...current,
+        [proveedor.id]: { ok: false, message: errorText(e) },
+      }));
+    } finally {
+      setImportingId(null);
     }
   }
 
@@ -141,14 +207,24 @@ export function SettingsModal({
 
   async function addProvider() {
     if (!nuevoProv.nombre.trim() || !nuevoProv.base_url.trim()) return;
-    await mutate(async () => {
-      await createProveedor({
+    setBusy(true);
+    try {
+      const creado = await createProveedor({
         nombre: nuevoProv.nombre.trim(),
         base_url: nuevoProv.base_url.trim(),
         tipo_api: "openai_compatible",
         activo: true,
       });
-    });
+      await reload();
+      onChanged();
+      // Recien creado el proveedor, sus modelos se cargan solos en la
+      // caja de chat: el usuario solo tiene que elegir cual usar.
+      await importarModelos(creado);
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function addModelo(proveedor: ProveedorLLM) {
@@ -281,6 +357,18 @@ export function SettingsModal({
                         <Zap size={11} />
                       )}
                       Probar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void importarModelos(proveedor)}
+                      disabled={importingId === proveedor.id || !proveedor.base_url}
+                      className="inline-flex items-center gap-1 rounded-md border border-white/15 bg-white/5 px-2 py-1 font-mono text-[9px] text-slate-200 transition hover:bg-white/10 disabled:opacity-40"
+                      title="Traer los modelos de este proveedor a la caja de chat"
+                    >
+                      {importingId === proveedor.id ? (
+                        <Loader2 size={11} className="animate-spin" />
+                      ) : null}
+                      Cargar modelos
                     </button>
                     <button
                       type="button"
