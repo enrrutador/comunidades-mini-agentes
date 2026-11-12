@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  AlertCircle,
   Check,
   Eye,
   EyeOff,
-
   Facebook,
   Heart,
   KeyRound,
@@ -16,7 +16,7 @@ import {
   Send,
   Trash2,
 } from "lucide-react";
-import { Chip, Field, Modal } from "./ui";
+import { Field, Modal } from "./ui";
 import { glow, text, uid } from "@/lib/theme";
 import {
   asignarPaginaFB,
@@ -36,7 +36,6 @@ import {
   type PaginaFB,
 } from "@/lib/api";
 import type { Character, Color } from "@/lib/types";
-import { useStored } from "@/lib/useStored";
 
 type FeedTipo = "post" | "comment" | "react";
 
@@ -46,27 +45,9 @@ interface FBEntry {
   perfil: string;
   pagina: string;
   texto?: string;
-  status: "en_cola" | "ok" | "error" | "demo";
+  status: "en_cola" | "ok" | "error";
   time: string;
 }
-
-const POST_TEMPLATES = [
-  "Nueva campaña de adopción en barrio norte 🐾",
-  "¿Sabías que un gato duerme 16 horas al día?",
-  "Rescatamos 3 gatitos en zona sur. Buscan hogar.",
-  "Tips de alimentación para gatos adultos.",
-  "El refugio necesita voluntarios el sábado.",
-];
-
-const COMMENT_TEMPLATES = [
-  "¡Qué buena info, gracias por compartir!",
-  "Totalmente de acuerdo, lo viví con mi gato.",
-  "Lo comparto para que llegue a más gente 🙌",
-  "Excelente post, me sirvió mucho.",
-  "Yo adopté así, recomiendo 100%.",
-];
-
-const PAGE_FALLBACK = "Página demo";
 
 const REACTIONS = [
   { tipo: "like", emoji: "👍" },
@@ -81,33 +62,46 @@ const TIPO_COLOR: Record<FeedTipo, Color> = {
   react: "pink",
 };
 
-const TIPO_LABEL: Record<FeedTipo, string> = {
-  post: "fb_post",
-  comment: "fb_comment",
-  react: "fb_react",
-};
-
 function nowTime(): string {
   return new Date().toLocaleTimeString("es-AR", { hour12: false });
-}
-
-function pick<T>(list: T[]): T {
-  return list[Math.floor(Math.random() * list.length)];
 }
 
 function slug(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 14);
 }
 
-function ParticleLine({ dur = "2.4s" }: { dur?: string }) {
-  return (
-    <svg className="h-3 w-6 shrink-0" aria-hidden>
-      <line x1="0" y1="6" x2="24" y2="6" stroke="#e6e6f0" strokeOpacity="0.2" strokeWidth="1" />
-      <circle r="1.4" fill="#f4f4ff" opacity="0.9">
-        <animateMotion dur={dur} repeatCount="indefinite" path="M0 6 L24 6" />
-      </circle>
-    </svg>
-  );
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : "Error inesperado";
+}
+
+/** Chip de estado de conexión con color, para saber de un vistazo si entró. */
+function estadoChip(estado: string): { label: string; cls: string; dot: string } {
+  switch (estado) {
+    case "conectado":
+      return {
+        label: "conectado",
+        cls: "border-neon-green/40 bg-neon-green/10 text-neon-green",
+        dot: "bg-neon-green shadow-[0_0_6px_rgba(0,255,157,0.8)]",
+      };
+    case "conectando":
+      return {
+        label: "conectando…",
+        cls: "border-neon-yellow/40 bg-neon-yellow/10 text-neon-yellow",
+        dot: "animate-pulse bg-neon-yellow",
+      };
+    case "error":
+      return {
+        label: "error",
+        cls: "border-neon-red/40 bg-neon-red/10 text-neon-red",
+        dot: "bg-neon-red",
+      };
+    default:
+      return {
+        label: estado || "desconectado",
+        cls: "border-white/10 bg-white/[0.03] text-slate-400",
+        dot: "bg-slate-500",
+      };
+  }
 }
 
 function ProfileChip({
@@ -118,8 +112,8 @@ function ProfileChip({
   page?: PaginaFB;
 }) {
   return (
-    <div className="flex items-center">
-      <div className="rounded border border-white/25 bg-[#0b0b13]/90 px-1.5 py-1 font-mono text-[8px] tracking-widest text-slate-100 shadow-[0_0_10px_rgba(255,255,255,0.08)] backdrop-blur">
+    <div className="flex items-center gap-1.5">
+      <div className="rounded border border-white/25 bg-[#0b0b13]/90 px-1.5 py-1 font-mono text-[8px] tracking-widest text-slate-100">
         <span className="flex items-center gap-1.5">
           <span
             className={`h-1 w-1 rounded-full ${
@@ -129,7 +123,6 @@ function ProfileChip({
           {perfil.name.toLowerCase()}
         </span>
       </div>
-      <ParticleLine dur={page ? "1.8s" : "3.4s"} />
       <span
         className={`min-w-0 truncate font-mono text-[8px] ${
           page ? "text-neon-cyan/80" : "text-slate-600"
@@ -147,28 +140,29 @@ function PageCard({
   posting,
   postText,
   onPostText,
+  onTogglePost,
   onSubmitPost,
   onCancelPost,
   onComentar,
   onReaccionar,
   onAsignar,
   perfiles,
-  demo,
 }: {
   page: PaginaFB;
   assigned?: Character;
   posting: boolean;
   postText: string;
   onPostText: (value: string) => void;
+  onTogglePost: () => void;
   onSubmitPost: () => void;
   onCancelPost: () => void;
   onComentar: () => void;
   onReaccionar: () => void;
   onAsignar: (perfilId: string) => void;
   perfiles: Character[];
-  demo: boolean;
 }) {
   const color: Color = assigned?.color ?? "blue";
+  const chip = estadoChip(page.estado_conexion);
   return (
     <article className={`neon-card ${glow[color]} flex flex-col p-2.5`}>
       <div className="flex items-start justify-between gap-2">
@@ -186,30 +180,35 @@ function PageCard({
       </div>
 
       <div className="mt-1.5 flex items-center gap-1.5 font-mono text-[8px]">
-        <span className="relative inline-flex h-3 w-6 items-center rounded-full bg-neon-green/25 px-0.5">
-          <span className="ml-auto h-2 w-2 rounded-full bg-neon-green shadow-[0_0_6px_rgba(0,255,157,0.8)]" />
-        </span>
-        <span className="text-neon-green">{demo ? "demo" : page.estado_conexion}</span>
+        <span className={`h-1.5 w-1.5 rounded-full ${chip.dot}`} />
+        <span className="text-slate-400">{page.estado_conexion}</span>
         <span className="text-slate-600">·</span>
         <span className="text-slate-500">navegador real</span>
       </div>
 
       <div className="mt-2 space-y-0.5 font-mono text-[8px] text-slate-500">
         <span className="block">
-          • perfil: <span className="text-neon-cyan">{assigned ? assigned.name.toLowerCase() : "—"}</span>
+          • perfil:{" "}
+          <span className="text-neon-cyan">
+            {assigned ? assigned.name.toLowerCase() : "sin asignar"}
+          </span>
         </span>
-        <span className="block">• posts: auto</span>
-        <span className="block">• comments: auto</span>
-        <span className="block">• check: pass cond.</span>
+        {page.url ? (
+          <span className="block truncate">
+            • url: <span className="text-slate-400">{page.url}</span>
+          </span>
+        ) : null}
+        <span className="block truncate">
+          • id: <span className="text-slate-400">{page.id_plataforma}</span>
+        </span>
       </div>
 
       <div className="mt-2">
         <select
           value={page.personaje_id ?? ""}
           onChange={(event) => onAsignar(event.target.value)}
-          disabled={demo}
           aria-label={`Asignar perfil a ${page.nombre_publico}`}
-          className="w-full rounded border border-white/10 bg-[#0a0a13] px-1 py-0.5 font-mono text-[9px] text-slate-300 outline-none disabled:opacity-50"
+          className="w-full rounded border border-white/10 bg-[#0a0a13] px-1 py-0.5 font-mono text-[9px] text-slate-300 outline-none"
         >
           <option value="">— asignar perfil —</option>
           {perfiles.map((perfil) => (
@@ -236,7 +235,8 @@ function PageCard({
           <button
             type="button"
             onClick={onSubmitPost}
-            className="rounded-md border border-neon-cyan/40 bg-neon-cyan/10 px-1.5 text-neon-cyan"
+            disabled={!postText.trim()}
+            className="rounded-md border border-neon-cyan/40 bg-neon-cyan/10 px-1.5 text-neon-cyan disabled:opacity-40"
             aria-label="Enviar publicación"
           >
             <Send size={11} />
@@ -249,7 +249,7 @@ function PageCard({
         <div className="flex items-center gap-1">
           <button
             type="button"
-            onClick={() => (demo || posting ? onSubmitPost() : onCancelPost())}
+            onClick={onTogglePost}
             className="flex items-center gap-0.5 rounded border border-neon-cyan/30 bg-neon-cyan/10 px-1 py-0.5 font-mono text-[8px] text-neon-cyan transition hover:bg-neon-cyan/20"
           >
             <Send size={8} /> pub
@@ -275,10 +275,13 @@ function PageCard({
 }
 
 export function FacebookView({ characters }: { characters: Character[] }) {
-  const [pages, setPages] = useStored<PaginaFB[]>("pulse.fb.pages.v1", []);
+  // Páginas y feed: SOLO estado de sesión alimentado por el backend.
+  // Nada se persiste en localStorage ni se inventa actividad.
+  const [pages, setPages] = useState<PaginaFB[]>([]);
   const [cuentas, setCuentas] = useState<CuentaFB[]>([]);
-  const [feed, setFeed] = useStored<FBEntry[]>("pulse.fb.feed.v1", []);
-  const [demoOn, setDemoOn] = useStored("pulse.fb.demo.v1", true);
+  const [paginasPorCuenta, setPaginasPorCuenta] = useState<Record<string, number>>({});
+  const [feed, setFeed] = useState<FBEntry[]>([]);
+  const [fbError, setFbError] = useState("");
   const [busy, setBusy] = useState(false);
   const [modalCuenta, setModalCuenta] = useState(false);
   const [draft, setDraft] = useState({ nombre_identificador: "", email_o_usuario: "", password: "", totp_secret: "" });
@@ -289,14 +292,11 @@ export function FacebookView({ characters }: { characters: Character[] }) {
 
   const perfiles = characters;
 
-  const pushFeed = useCallback(
-    (entry: Omit<FBEntry, "id" | "time">) => {
-      setFeed((current) =>
-        [{ ...entry, id: uid("fbe"), time: nowTime() }, ...current].slice(0, 60),
-      );
-    },
-    [setFeed],
-  );
+  const pushFeed = useCallback((entry: Omit<FBEntry, "id" | "time">) => {
+    setFeed((current) =>
+      [{ ...entry, id: uid("fbe"), time: nowTime() }, ...current].slice(0, 60),
+    );
+  }, []);
 
   const refresh = useCallback(async () => {
     setBusy(true);
@@ -307,12 +307,29 @@ export function FacebookView({ characters }: { characters: Character[] }) {
       ]);
       setPages(paginas);
       setCuentas(listaCuentas);
-    } catch {
-      /* backend sin levantar: modo demo */
+      setFbError("");
+      const counts: Record<string, number> = {};
+      await Promise.all(
+        listaCuentas.map(async (cuenta) => {
+          try {
+            const propias = await listPaginasFB(cuenta.id);
+            counts[cuenta.id] = propias.length;
+          } catch {
+            counts[cuenta.id] = 0;
+          }
+        }),
+      );
+      setPaginasPorCuenta(counts);
+    } catch (e) {
+      setPages([]);
+      setCuentas([]);
+      setFbError(
+        `No pude conectar con el backend (${errorText(e)}). Sin conexión no se muestra ninguna cuenta ni Página inventada.`,
+      );
     } finally {
       setBusy(false);
     }
-  }, [setPages]);
+  }, []);
 
   useEffect(() => {
     void refresh();
@@ -322,26 +339,11 @@ export function FacebookView({ characters }: { characters: Character[] }) {
     if (feedTopRef.current) feedTopRef.current.scrollTop = 0;
   }, [feed.length]);
 
-  useEffect(() => {
-    if (!demoOn || perfiles.length === 0) return;
-    const timer = setInterval(() => {
-      const perfil = pick(perfiles);
-      const page = pages.length > 0 ? pick(pages).nombre_publico : PAGE_FALLBACK;
-      const roll = Math.random();
-      if (roll < 0.4) {
-        pushFeed({ tipo: "post", perfil: perfil.name, pagina: page, texto: pick(POST_TEMPLATES), status: "demo" });
-      } else if (roll < 0.8) {
-        pushFeed({ tipo: "comment", perfil: perfil.name, pagina: page, texto: pick(COMMENT_TEMPLATES), status: "demo" });
-      } else {
-        pushFeed({ tipo: "react", perfil: perfil.name, pagina: page, texto: pick(REACTIONS).emoji, status: "demo" });
-      }
-    }, 2400 + Math.random() * 1500);
-    return () => clearInterval(timer);
-  }, [demoOn, perfiles, pages, pushFeed]);
-
-  const demoMode = pages.length === 0;
-  const okCount = feed.filter((entry) => entry.status === "ok").length;
   const errorCount = feed.filter((entry) => entry.status === "error").length;
+  const cuentasConectadas = useMemo(
+    () => cuentas.filter((c) => c.estado_conexion === "conectado").length,
+    [cuentas],
+  );
 
   function handleAsignar(page: PaginaFB, personajeId: string) {
     if (!personajeId) return;
@@ -366,77 +368,110 @@ export function FacebookView({ characters }: { characters: Character[] }) {
           tipo: "post",
           perfil: "sistema",
           pagina: page.nombre_publico,
-          texto: error instanceof Error ? error.message : "error asignación",
+          texto: errorText(error),
           status: "error",
         });
       });
   }
 
-  function handlePublicar(page: PaginaFB, perfil: Character | undefined, mensaje: string) {
+  function handlePublicar(page: PaginaFB, perfil: Character | undefined) {
+    const texto = postText.trim();
+    if (!texto) {
+      pushFeed({
+        tipo: "post",
+        perfil: perfil?.name ?? "sistema",
+        pagina: page.nombre_publico,
+        texto: "escribí el texto del post antes de publicar (no se manda nada vacío ni de ejemplo)",
+        status: "error",
+      });
+      return;
+    }
     setPostingOn(null);
     setPostText("");
-    const texto = mensaje.trim() || pick(POST_TEMPLATES);
     pushFeed({ tipo: "post", perfil: perfil?.name ?? "sistema", pagina: page.nombre_publico, texto, status: "en_cola" });
-    if (demoMode) return;
     void publicarPostFB({ pagina_id: page.id, mensaje: texto })
-      .then(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 1200));
-        pushFeed({ tipo: "post", perfil: perfil?.name ?? "sistema", pagina: page.nombre_publico, texto, status: "ok" });
+      .then((res) => {
+        pushFeed({
+          tipo: "post",
+          perfil: perfil?.name ?? "sistema",
+          pagina: page.nombre_publico,
+          texto: res.message,
+          status: "en_cola",
+        });
       })
       .catch((error: unknown) => {
         pushFeed({
           tipo: "post",
           perfil: perfil?.name ?? "sistema",
           pagina: page.nombre_publico,
-          texto: error instanceof Error ? error.message : "error",
+          texto: errorText(error),
           status: "error",
         });
       });
   }
 
   function handleComentar(page: PaginaFB, perfil: Character | undefined) {
-    const mensaje = pick(COMMENT_TEMPLATES);
-    pushFeed({ tipo: "comment", perfil: perfil?.name ?? "sistema", pagina: page.nombre_publico, texto: mensaje, status: "en_cola" });
-    if (demoMode) return;
+    const url = window.prompt("URL del post de Facebook a comentar:");
+    if (!url || !url.trim()) return;
+    const mensaje = window.prompt("Texto del comentario:");
+    if (!mensaje || !mensaje.trim()) return;
+    pushFeed({ tipo: "comment", perfil: perfil?.name ?? "sistema", pagina: page.nombre_publico, texto: mensaje.trim(), status: "en_cola" });
     void comentarFB({
-      post_url: `https://facebook.com/${page.id_plataforma}/posts/${Date.now()}`,
-      mensaje,
+      post_url: url.trim(),
+      mensaje: mensaje.trim(),
       personaje_id: page.personaje_id ?? undefined,
     })
-      .then(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 900));
-        pushFeed({ tipo: "comment", perfil: perfil?.name ?? "sistema", pagina: page.nombre_publico, texto: mensaje, status: "ok" });
+      .then((res) => {
+        pushFeed({
+          tipo: "comment",
+          perfil: perfil?.name ?? "sistema",
+          pagina: page.nombre_publico,
+          texto: res.message,
+          status: res.verificado ? "ok" : "en_cola",
+        });
       })
       .catch((error: unknown) => {
         pushFeed({
           tipo: "comment",
           perfil: perfil?.name ?? "sistema",
           pagina: page.nombre_publico,
-          texto: error instanceof Error ? error.message : "error",
+          texto: errorText(error),
           status: "error",
         });
       });
   }
 
   function handleReaccionar(page: PaginaFB, perfil: Character | undefined) {
-    const reaccion = pick(REACTIONS);
+    const url = window.prompt("URL del post o comentario a reaccionar:");
+    if (!url || !url.trim()) return;
+    const tipoRaw = window.prompt(
+      `Tipo de reacción (${REACTIONS.map((r) => r.tipo).join(", ")}):`,
+      "like",
+    );
+    if (tipoRaw === null) return;
+    const reaccion =
+      REACTIONS.find((r) => r.tipo === tipoRaw.trim().toLowerCase()) ?? REACTIONS[0];
     pushFeed({ tipo: "react", perfil: perfil?.name ?? "sistema", pagina: page.nombre_publico, texto: reaccion.emoji, status: "en_cola" });
-    if (demoMode) return;
     void reaccionarFB({
-      object_url: `https://facebook.com/${page.id_plataforma}/posts/${Date.now()}`,
+      object_url: url.trim(),
       tipo: reaccion.tipo,
       personaje_id: page.personaje_id ?? undefined,
     })
-      .then(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 700));
-        pushFeed({ tipo: "react", perfil: perfil?.name ?? "sistema", pagina: page.nombre_publico, texto: reaccion.emoji, status: "ok" });
+      .then((res) => {
+        pushFeed({
+          tipo: "react",
+          perfil: perfil?.name ?? "sistema",
+          pagina: page.nombre_publico,
+          texto: res.message,
+          status: res.verificado ? "ok" : "en_cola",
+        });
       })
       .catch((error: unknown) => {
         pushFeed({
           tipo: "react",
           perfil: perfil?.name ?? "sistema",
           pagina: page.nombre_publico,
-          texto: error instanceof Error ? error.message : "error",
+          texto: errorText(error),
           status: "error",
         });
       });
@@ -455,7 +490,7 @@ export function FacebookView({ characters }: { characters: Character[] }) {
         tipo: "post",
         perfil: "sistema",
         pagina: "error registro",
-        texto: error instanceof Error ? error.message : "error",
+        texto: errorText(error),
         status: "error",
       });
     } finally {
@@ -484,11 +519,29 @@ export function FacebookView({ characters }: { characters: Character[] }) {
                   : item,
               ),
             );
-            pushFeed(
-              estado.estado_conexion === "conectado"
-                ? { tipo: "post", perfil: cuenta.nombre_identificador, pagina: "sesión abierta", status: "ok" }
-                : { tipo: "post", perfil: cuenta.nombre_identificador, pagina: "login rechazado (¿checkpoint o credenciales?)", status: "error" },
-            );
+            if (estado.estado_conexion === "conectado") {
+              pushFeed({ tipo: "post", perfil: cuenta.nombre_identificador, pagina: "sesión abierta · detectando Páginas…", status: "ok" });
+              // Al conectar, detectar las Páginas automáticamente.
+              try {
+                const encontradas = await detectarPaginasFB(cuenta.id);
+                pushFeed({
+                  tipo: "post",
+                  perfil: cuenta.nombre_identificador,
+                  pagina: `${encontradas.length} Páginas detectadas`,
+                  status: "ok",
+                });
+              } catch (error) {
+                pushFeed({
+                  tipo: "post",
+                  perfil: cuenta.nombre_identificador,
+                  pagina: "la detección automática de Páginas falló",
+                  texto: errorText(error),
+                  status: "error",
+                });
+              }
+            } else {
+              pushFeed({ tipo: "post", perfil: cuenta.nombre_identificador, pagina: "login rechazado (¿checkpoint o credenciales?)", status: "error" });
+            }
             await refresh();
             return;
           }
@@ -501,7 +554,7 @@ export function FacebookView({ characters }: { characters: Character[] }) {
           tipo: "post",
           perfil: cuenta.nombre_identificador,
           pagina: "login falló",
-          texto: error instanceof Error ? error.message : "error",
+          texto: errorText(error),
           status: "error",
         });
         setCuentas((current) =>
@@ -513,25 +566,23 @@ export function FacebookView({ characters }: { characters: Character[] }) {
   }
 
   function handleDetectarPaginas(cuenta: CuentaFB) {
+    pushFeed({ tipo: "post", perfil: cuenta.nombre_identificador, pagina: "detectando Páginas…", status: "en_cola" });
     void detectarPaginasFB(cuenta.id)
-      .then((encontradas) => {
-        setPages((current) => {
-          const ids = new Set(current.map((page) => page.id));
-          return [...current, ...encontradas.filter((page) => !ids.has(page.id))];
-        });
+      .then(async (encontradas) => {
         pushFeed({
           tipo: "post",
           perfil: cuenta.nombre_identificador,
-          pagina: `${encontradas.length} páginas detectadas`,
+          pagina: `${encontradas.length} Páginas detectadas`,
           status: "ok",
         });
+        await refresh();
       })
       .catch((error: unknown) => {
         pushFeed({
           tipo: "post",
           perfil: cuenta.nombre_identificador,
           pagina: "detección falló",
-          texto: error instanceof Error ? error.message : "error",
+          texto: errorText(error),
           status: "error",
         });
       });
@@ -543,10 +594,11 @@ export function FacebookView({ characters }: { characters: Character[] }) {
     const categoria = window.prompt("Categoría (ej. Comunidad, Marca, Artista):") || "Comunidad";
     pushFeed({ tipo: "post", perfil: cuenta.nombre_identificador, pagina: `creando "${nombre.trim()}"…`, status: "en_cola" });
     void crearPaginaFB(cuenta.id, nombre.trim(), categoria.trim())
-      .then((resultado) => {
+      .then(async (resultado) => {
         if (resultado.status === "creada") {
           pushFeed({ tipo: "post", perfil: cuenta.nombre_identificador, pagina: `página creada: ${resultado.nombre}`, status: "ok" });
-          return detectarPaginasFB(cuenta.id);
+          await refresh();
+          return;
         }
         pushFeed({
           tipo: "post",
@@ -555,21 +607,13 @@ export function FacebookView({ characters }: { characters: Character[] }) {
           texto: resultado.error ?? "error",
           status: "error",
         });
-        return null;
-      })
-      .then((encontradas) => {
-        if (!encontradas) return;
-        setPages((current) => {
-          const ids = new Set(current.map((page) => page.id));
-          return [...current, ...encontradas.filter((page) => !ids.has(page.id))];
-        });
       })
       .catch((error: unknown) => {
         pushFeed({
           tipo: "post",
           perfil: cuenta.nombre_identificador,
           pagina: "creación falló",
-          texto: error instanceof Error ? error.message : "error",
+          texto: errorText(error),
           status: "error",
         });
       });
@@ -577,7 +621,7 @@ export function FacebookView({ characters }: { characters: Character[] }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {/* breadcrumb + stats estilo header */}
+      {/* breadcrumb + stats */}
       <div className="flex flex-wrap items-center gap-2 border-b border-[#1a1a2e] bg-[#05050a]/95 px-3 py-2 backdrop-blur sm:gap-4">
         <div className="flex items-center gap-1 font-mono text-[10px] text-slate-500">
           <span>facebook /</span>
@@ -586,10 +630,13 @@ export function FacebookView({ characters }: { characters: Character[] }) {
 
         <div className="no-scrollbar ml-auto flex items-center gap-3 overflow-x-auto font-mono text-[9px] text-slate-500 sm:gap-5">
           <span>
+            <span className="text-neon-green font-semibold">{cuentasConectadas}</span> cuentas conectadas
+          </span>
+          <span>
             <span className="text-neon-green font-semibold">{perfiles.length}</span> perfiles
           </span>
           <span>
-            <span className="text-neon-cyan font-semibold">{pages.length || "demo"}</span> páginas
+            <span className="text-neon-cyan font-semibold">{pages.length}</span> páginas
           </span>
           <span>
             <span className="text-neon-purple font-semibold">{feed.length}</span> interacciones
@@ -601,19 +648,7 @@ export function FacebookView({ characters }: { characters: Character[] }) {
 
         <button
           type="button"
-          onClick={() => setDemoOn(!demoOn)}
-          className={`flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 font-mono text-[9px] transition ${
-            demoOn
-              ? "border-neon-red/40 bg-neon-red/10 text-neon-red"
-              : "border-white/10 bg-white/[0.03] text-slate-500 hover:text-slate-300"
-          }`}
-        >
-          <span className={`h-1.5 w-1.5 rounded-full ${demoOn ? "animate-pulse bg-neon-red" : "bg-slate-600"}`} />
-          {demoOn ? "EN VIVO" : "apagado"}
-        </button>
-        <button
-          type="button"
-          onClick={refresh}
+          onClick={() => void refresh()}
           className="shrink-0 rounded-md p-1 text-slate-400 transition hover:text-neon-cyan"
           aria-label="Refrescar"
         >
@@ -628,198 +663,247 @@ export function FacebookView({ characters }: { characters: Character[] }) {
         </button>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3 xl:flex-row xl:overflow-hidden">
-        {/* PERFILES — chips blancos con partículas */}
-        <section className="flex min-h-0 flex-col xl:w-[240px] xl:shrink-0">
-          <div className="mb-1.5 flex items-center justify-between font-mono text-[8px] tracking-widest text-slate-500">
-            <span>PERFILES · activos</span>
-            <span>{perfiles.length}</span>
-          </div>
-          <div className="mesh-grid relative rounded-lg border border-white/[0.05] bg-[#050509] p-2">
-            <div className="no-scrollbar flex max-h-[420px] min-h-0 flex-col gap-2 overflow-y-auto xl:max-h-none">
-              {perfiles.length === 0 ? (
-                <p className="p-2 text-center font-mono text-[9px] text-slate-600">
-                  sin personajes
-                </p>
-              ) : (
-                perfiles.map((perfil) => {
-                  const page = pages.find((item) => item.personaje_id === perfil.id);
-                  return (
-                    <div key={perfil.id} className="animate-chip-in">
-                      <ProfileChip perfil={perfil} page={page} />
-                      <div className="ml-2 mt-0.5 font-mono text-[7px] text-slate-600">
-                        {perfil.temperamento} · actividad {perfil.actividad}/10
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
+      {fbError ? (
+        <div className="flex shrink-0 items-start gap-2 border-b border-neon-red/30 bg-neon-red/[0.07] px-3 py-2 text-[11px] leading-relaxed text-neon-red">
+          <AlertCircle size={13} className="mt-0.5 shrink-0" />
+          <span>{fbError}</span>
+        </div>
+      ) : null}
 
-          {cuentas.length > 0 ? (
-            <div className="mt-2 space-y-1">
-              <div className="font-mono text-[8px] tracking-widest text-slate-500">CUENTAS</div>
-              {cuentas.map((cuenta) => (
-                <div
-                  key={cuenta.id}
-                  className="flex items-center gap-1.5 rounded border border-white/10 bg-white/[0.02] px-1.5 py-1"
-                >
-                  <KeyRound size={9} className="shrink-0 text-neon-yellow" />
-                  <span className="min-w-0 flex-1 truncate font-mono text-[8px] text-slate-300">
-                    {cuenta.nombre_identificador}
-                  </span>
-                  <span
-                    className={`shrink-0 font-mono text-[7px] ${
-                      cuenta.estado_conexion === "conectado" ? "text-neon-green" : "text-neon-yellow"
-                    }`}
-                  >
-                    {cuenta.estado_conexion}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleLogin(cuenta)}
-                    className="shrink-0 rounded border border-white/10 px-1 font-mono text-[7px] text-slate-400 transition hover:text-neon-cyan"
-                  >
-                    login
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDetectarPaginas(cuenta)}
-                    className="shrink-0 rounded border border-white/10 px-1 font-mono text-[7px] text-slate-400 transition hover:text-neon-cyan"
-                  >
-                    págs
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleCrearPagina(cuenta)}
-                    className="shrink-0 rounded border border-white/10 px-1 font-mono text-[7px] text-slate-400 transition hover:text-neon-cyan"
-                  >
-                    +pág
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void deleteCuentaFB(cuenta.id).then(refresh)}
-                    className="shrink-0 rounded p-0.5 text-slate-600 transition hover:text-neon-red"
-                    aria-label="Eliminar cuenta"
-                  >
-                    <Trash2 size={9} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </section>
-
-        {/* PÁGINAS FB — tarjetas neón como bots */}
-        <section className="flex min-h-0 flex-col xl:w-[290px] xl:shrink-0">
-          <div className="mb-1.5 flex items-center justify-between font-mono text-[8px] tracking-widest text-slate-500">
-            <span>PÁGINAS · FB</span>
-            <span>{pages.length || "demo"}</span>
-          </div>
-          <div className="no-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-            {pages.map((page, index) => {
-              const assigned = perfiles.find((perfil) => perfil.id === page.personaje_id);
-              const isDemo = demoMode;
-              const pageKey = page.id ?? `demo-${index}`;
-              return (
-                <PageCard
-                  key={pageKey}
-                  page={page}
-                  assigned={assigned}
-                  perfiles={perfiles}
-                  demo={isDemo}
-                  posting={postingOn === page.id && !isDemo}
-                  postText={postText}
-                  onPostText={setPostText}
-                  onSubmitPost={() => handlePublicar(page, assigned, postText)}
-                  onCancelPost={() => {
-                    if (isDemo) {
-                      handlePublicar(page, assigned, "");
-                    } else {
-                      setPostingOn(postingOn === page.id ? null : page.id);
-                      setPostText("");
-                    }
-                  }}
-                  onComentar={() => handleComentar(page, assigned)}
-                  onReaccionar={() => handleReaccionar(page, assigned)}
-                  onAsignar={(perfilId) => handleAsignar(page, perfilId)}
-                />
-              );
-            })}
-          </div>
-        </section>
-
-        {/* FEED EN VIVO — log estilo mesh */}
-        <section className="flex min-h-0 flex-1 flex-col">
-          <div className="mb-1.5 flex items-center justify-between font-mono text-[8px] tracking-widest text-slate-500">
-            <span className="flex items-center gap-1.5">
-              <span className={`h-1.5 w-1.5 rounded-full ${demoOn ? "animate-pulse bg-neon-red" : "bg-slate-600"}`} />
-              FEED EN VIVO
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {/* CUENTA DE FACEBOOK — tarjeta principal: acá se ve si conectó */}
+        <section className="border-b border-[#1a1a2e] px-3 py-3">
+          <div className="mb-2 flex items-center justify-between font-mono text-[8px] tracking-widest text-slate-500">
+            <span>CUENTA DE FACEBOOK</span>
+            <span>
+              {cuentas.length === 0
+                ? "sin cuenta"
+                : `${cuentasConectadas}/${cuentas.length} conectadas`}
             </span>
-            <button
-              type="button"
-              onClick={() => setFeed([])}
-              className="flex items-center gap-1 transition hover:text-slate-300"
-            >
-              <Trash2 size={9} /> limpiar
-            </button>
           </div>
-          <div className="mesh-grid relative min-h-0 flex-1 rounded-lg border border-white/[0.05] bg-[#050509]">
-            <div ref={feedTopRef} className="no-scrollbar h-full space-y-1 overflow-y-auto p-2 font-mono">
-              {feed.length === 0 ? (
-                <p className="p-3 text-center text-[9px] text-slate-600">
-                  esperando actividad de las páginas…
-                </p>
-              ) : (
-                feed.map((entry) => {
-                  const color = TIPO_COLOR[entry.tipo];
-                  return (
-                    <div
-                      key={entry.id}
-                      className="animate-chip-in flex items-start gap-2 text-[9px] leading-relaxed"
-                    >
-                      <span className="shrink-0 text-slate-600">{entry.time}</span>
-                      <span className={`w-16 shrink-0 truncate ${text[color]}`}>
-                        {entry.perfil.toLowerCase().replace(/\s+/g, "_")}
+          {cuentas.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-white/10 px-4 py-6 text-center">
+              <p className="font-mono text-[10px] leading-relaxed text-slate-500">
+                Sin cuenta conectada. Registrá la tuya con el botón «+ cuenta»:
+                acá vas a ver su estado de conexión y sus Páginas, sin vueltas.
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(290px,1fr))]">
+              {cuentas.map((cuenta) => {
+                const chip = estadoChip(cuenta.estado_conexion);
+                const cantidad = paginasPorCuenta[cuenta.id];
+                return (
+                  <article
+                    key={cuenta.id}
+                    className="rounded-lg border border-white/10 bg-white/[0.02] p-3"
+                  >
+                    <div className="flex items-center gap-2">
+                      <KeyRound size={13} className="shrink-0 text-neon-yellow" />
+                      <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-slate-100">
+                        {cuenta.nombre_identificador}
                       </span>
-                      <span className="shrink-0 text-slate-600">
-                        {entry.tipo === "post" ? "→" : entry.tipo === "comment" ? "↳" : "♡"}
-                      </span>
-                      <span className="w-20 shrink-0 truncate text-neon-cyan/70">
-                        {slug(entry.pagina)}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate text-slate-400">{entry.texto}</span>
                       <span
-                        className={`shrink-0 ${
-                          entry.status === "ok"
-                            ? "text-neon-green"
-                            : entry.status === "error"
-                            ? "text-neon-red"
-                            : entry.status === "en_cola"
-                            ? "animate-pulse text-neon-cyan"
-                            : "text-slate-600"
-                        }`}
+                        className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 font-mono text-[8px] ${chip.cls}`}
                       >
-                        {entry.status === "ok" ? (
-                          <Check size={9} className="inline" />
-                        ) : (
-                          entry.status === "demo" ? "sim" : entry.status === "en_cola" ? "···" : "err"
-                        )}
+                        <span className={`h-1.5 w-1.5 rounded-full ${chip.dot}`} />
+                        {chip.label}
                       </span>
                     </div>
+                    <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[9px] text-slate-500">
+                      <span>
+                        <span className="text-neon-cyan">
+                          {cantidad ?? "—"}
+                        </span>{" "}
+                        Páginas detectadas
+                      </span>
+                      <span>
+                        última conexión:{" "}
+                        <span className="text-slate-400">
+                          {cuenta.ultima_conexion ?? "—"}
+                        </span>
+                      </span>
+                    </div>
+                    <div className="mt-2.5 flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleLogin(cuenta)}
+                        className="rounded border border-neon-green/30 bg-neon-green/10 px-2 py-1 font-mono text-[9px] text-neon-green transition hover:bg-neon-green/20"
+                      >
+                        {cuenta.estado_conexion === "conectado"
+                          ? "reconectar"
+                          : "conectar (login)"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDetectarPaginas(cuenta)}
+                        className="rounded border border-white/10 px-2 py-1 font-mono text-[9px] text-slate-300 transition hover:text-neon-cyan"
+                      >
+                        detectar Páginas
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleCrearPagina(cuenta)}
+                        className="rounded border border-white/10 px-2 py-1 font-mono text-[9px] text-slate-300 transition hover:text-neon-cyan"
+                      >
+                        + Página
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void deleteCuentaFB(cuenta.id).then(() => refresh())
+                        }
+                        className="ml-auto rounded p-1 text-slate-600 transition hover:text-neon-red"
+                        aria-label="Eliminar cuenta"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        <div className="flex flex-col gap-2 p-3 xl:flex-row">
+          {/* PERFILES — personajes reales del backend */}
+          <section className="flex min-h-0 flex-col xl:w-[240px] xl:shrink-0">
+            <div className="mb-1.5 flex items-center justify-between font-mono text-[8px] tracking-widest text-slate-500">
+              <span>PERFILES · activos</span>
+              <span>{perfiles.length}</span>
+            </div>
+            <div className="mesh-grid relative rounded-lg border border-white/[0.05] bg-[#050509] p-2">
+              <div className="no-scrollbar flex max-h-[420px] min-h-0 flex-col gap-2 overflow-y-auto xl:max-h-none">
+                {perfiles.length === 0 ? (
+                  <p className="p-2 text-center font-mono text-[9px] leading-relaxed text-slate-600">
+                    Todavía no hay personajes en el backend.
+                  </p>
+                ) : (
+                  perfiles.map((perfil) => {
+                    const page = pages.find((item) => item.personaje_id === perfil.id);
+                    return (
+                      <div key={perfil.id}>
+                        <ProfileChip perfil={perfil} page={page} />
+                        <div className="ml-2 mt-0.5 font-mono text-[7px] text-slate-600">
+                          {perfil.temperamento} · actividad {perfil.actividad}/10
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* PÁGINAS FB reales */}
+          <section className="flex min-h-0 flex-col xl:w-[290px] xl:shrink-0">
+            <div className="mb-1.5 flex items-center justify-between font-mono text-[8px] tracking-widest text-slate-500">
+              <span>PÁGINAS · FB</span>
+              <span>{pages.length}</span>
+            </div>
+            <div className="space-y-2">
+              {pages.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-white/10 px-3 py-6 text-center font-mono text-[9px] leading-relaxed text-slate-600">
+                  Todavía no hay Páginas detectadas. Conectá tu cuenta arriba
+                  y la detección corre sola; también podés tocar «detectar
+                  Páginas» en la tarjeta de la cuenta.
+                </p>
+              ) : (
+                pages.map((page) => {
+                  const assigned = perfiles.find((perfil) => perfil.id === page.personaje_id);
+                  return (
+                    <PageCard
+                      key={page.id}
+                      page={page}
+                      assigned={assigned}
+                      perfiles={perfiles}
+                      posting={postingOn === page.id}
+                      postText={postingOn === page.id ? postText : ""}
+                      onPostText={setPostText}
+                      onTogglePost={() => {
+                        setPostingOn(postingOn === page.id ? null : page.id);
+                        setPostText("");
+                      }}
+                      onSubmitPost={() => handlePublicar(page, assigned)}
+                      onCancelPost={() => {
+                        setPostingOn(null);
+                        setPostText("");
+                      }}
+                      onComentar={() => handleComentar(page, assigned)}
+                      onReaccionar={() => handleReaccionar(page, assigned)}
+                      onAsignar={(perfilId) => handleAsignar(page, perfilId)}
+                    />
                   );
                 })
               )}
             </div>
-          </div>
-          <div className="mt-1.5 flex flex-wrap gap-1">
-            <Chip>fb_post</Chip>
-            <Chip>fb_comment</Chip>
-            <Chip>fb_react</Chip>
-            <Chip>navegador · sin APIs</Chip>
-          </div>
-        </section>
+          </section>
+
+          {/* FEED — solo acciones reales hechas desde esta pantalla */}
+          <section className="flex min-h-0 flex-1 flex-col">
+            <div className="mb-1.5 flex items-center justify-between font-mono text-[8px] tracking-widest text-slate-500">
+              <span>ACTIVIDAD · acciones desde esta pantalla</span>
+              <button
+                type="button"
+                onClick={() => setFeed([])}
+                className="flex items-center gap-1 transition hover:text-slate-300"
+              >
+                <Trash2 size={9} /> limpiar
+              </button>
+            </div>
+            <div className="mesh-grid relative min-h-[220px] rounded-lg border border-white/[0.05] bg-[#050509]">
+              <div ref={feedTopRef} className="no-scrollbar h-full max-h-[520px] space-y-1 overflow-y-auto p-2 font-mono">
+                {feed.length === 0 ? (
+                  <p className="p-3 text-center text-[9px] leading-relaxed text-slate-600">
+                    Todavía no hay actividad. Cuando conectes la cuenta o una
+                    Página publique, comente o reaccione desde acá, queda
+                    registrado en este feed con su resultado real.
+                  </p>
+                ) : (
+                  feed.map((entry) => {
+                    const color = TIPO_COLOR[entry.tipo];
+                    return (
+                      <div
+                        key={entry.id}
+                        className="flex items-start gap-2 text-[9px] leading-relaxed"
+                      >
+                        <span className="shrink-0 text-slate-600">{entry.time}</span>
+                        <span className={`w-16 shrink-0 truncate ${text[color]}`}>
+                          {entry.perfil.toLowerCase().replace(/\s+/g, "_")}
+                        </span>
+                        <span className="shrink-0 text-slate-600">
+                          {entry.tipo === "post" ? "→" : entry.tipo === "comment" ? "↳" : "♡"}
+                        </span>
+                        <span className="w-20 shrink-0 truncate text-neon-cyan/70">
+                          {slug(entry.pagina)}
+                        </span>
+                        <span className="min-w-0 flex-1 text-slate-400">{entry.texto}</span>
+                        <span
+                          className={`shrink-0 ${
+                            entry.status === "ok"
+                              ? "text-neon-green"
+                              : entry.status === "error"
+                                ? "text-neon-red"
+                                : "animate-pulse text-neon-cyan"
+                          }`}
+                        >
+                          {entry.status === "ok" ? (
+                            <Check size={9} className="inline" />
+                          ) : entry.status === "en_cola" ? (
+                            "···"
+                          ) : (
+                            "err"
+                          )}
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </section>
+        </div>
       </div>
 
       <Modal
@@ -878,14 +962,8 @@ export function FacebookView({ characters }: { characters: Character[] }) {
               className="input-neon font-mono text-[11px]"
             />
           </Field>
-          <div className="flex flex-wrap gap-1">
-            <Chip>sesión persistente</Chip>
-            <Chip>checkpoints automáticos</Chip>
-          </div>
         </div>
       </Modal>
     </div>
   );
 }
-
-

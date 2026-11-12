@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { X } from "lucide-react";
 import { Header } from "@/components/Header";
 import { GlobalView } from "@/components/GlobalView";
 import { BotsView } from "@/components/BotsView";
@@ -9,96 +10,98 @@ import { RulesView } from "@/components/RulesView";
 import { MemoryView } from "@/components/MemoryView";
 import { FacebookView } from "@/components/FacebookView";
 import { SettingsModal } from "@/components/SettingsModal";
-import { BotConfigModal, unitCode } from "@/components/BotCard";
+import { BotConfigModal } from "@/components/BotCard";
 import { CharacterConfigModal } from "@/components/CharacterCard";
 import { useStored } from "@/lib/useStored";
-import { activeProvider, callLLM, llmConfigured, testProvider } from "@/lib/llm";
-import { listPersonajes, listTareas, createPersonaje, updatePersonaje, loginAdmin, logoutAdmin, isAuthenticated, getMe } from "@/lib/api";
-import type { AuthUser } from "@/lib/api";
-import type { Comunidad as ApiComunidad, Personaje as ApiPersonaje } from "@/lib/api";
-import { timeNow, uid, colorForName } from "@/lib/theme";
 import {
-  ALL_BOTS,
-  CHARACTERS,
-  DEFAULT_RULES,
-  DEFAULT_SETTINGS,
-  INITIAL_MEMORY,
-  INITIAL_RUNS,
-  SOCIAL_ACCOUNTS,
-  initialLogs,
-} from "@/lib/data";
+  chatLLM,
+  createComunidad,
+  createPersonaje,
+  getMe,
+  isAuthenticated,
+  listComunidades,
+  listModelos,
+  listPersonajes,
+  listProveedores,
+  listTareas,
+  loginAdmin,
+  logoutAdmin,
+  updatePersonaje,
+  type AuthUser,
+  type Comunidad as ApiComunidad,
+  type ModeloLLM,
+  type Personaje as ApiPersonaje,
+  type ProveedorLLM,
+} from "@/lib/api";
+import { timeNow, uid, colorForName } from "@/lib/theme";
+import { ALL_BOTS } from "@/lib/data";
 import type {
   Bot,
   Character,
-  Community,
   Color,
   LogEntry,
-  MemoryEntry,
   Rule,
   RunRecord,
-  RunState,
-  Settings,
   Tab,
-  Unit,
 } from "@/lib/types";
 
-function unitSystem(bot: Bot, persona: Character | undefined): string {
-  const lines = [
-    `Sos ${bot.name}, un bot del mesh de Pulse OS.`,
-    bot.instructions ? `Instrucciones: ${bot.instructions}` : `Rol: ${bot.desc}`,
-  ];
-  if (persona) {
-    lines.push(
-      `Operás como ${persona.name} en Pulse OS, una red social con perfiles propios. Temperamento: ${persona.temperamento}. Temas: ${persona.temas.join(", ")}. Bio: ${persona.bio}. Escribí como una persona real, en primera persona.`,
-    );
-  }
-  lines.push(
-    "Respondé en español rioplatense. Devolvé ÚNICAMENTE el contenido final para publicar (sin prefijos, sin explicaciones, sin comillas). Máximo 3 frases cortas.",
-  );
-  return lines.join("\n");
+function mapPersonaje(p: ApiPersonaje): Character {
+  return {
+    id: p.id,
+    name: p.nombre,
+    communityId: p.comunidad_id,
+    color: colorForName(p.nombre),
+    estado: (p.estado === "activo"
+      ? "activo"
+      : p.estado === "inactivo"
+        ? "inactivo"
+        : "en_preparacion") as Character["estado"],
+    actividad: p.nivel_actividad ?? 5,
+    bio: p.biografia_interna ?? "",
+    temperamento: (p.personalidad as Record<string, string>)?.temperamento ?? "",
+    temas: (p.personalidad as Record<string, string[]>)?.temas_preferidos ?? [],
+  };
+}
+
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : "Error inesperado";
 }
 
 export default function PulseOS() {
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("Global");
-  const [settings, setSettings] = useStored<Settings>(
-    "pulse.settings.v1",
-    DEFAULT_SETTINGS,
-  );
-  const [bots, setBots] = useStored<Bot[]>("pulse.bots.v1", [...ALL_BOTS]);
-  const [rules, setRules] = useStored<Rule[]>("pulse.rules.v1", [
-    ...DEFAULT_RULES,
-  ]);
-  const [memories, setMemories] = useStored<MemoryEntry[]>(
-    "pulse.memory.v1",
-    [...INITIAL_MEMORY],
-  );
-  const [characters, setCharacters] = useStored<Character[]>(
-    "pulse.characters.v1",
-    [...CHARACTERS],
-  );
-  const [accounts, setAccounts] = useStored(
-    "pulse.accounts.v1",
-    [...SOCIAL_ACCOUNTS],
-  );
-  const [runs, setRuns] = useStored<RunRecord[]>("pulse.runs.v1", [
-    ...INITIAL_RUNS,
-  ]);
 
-  const [logs, setLogs] = useState<LogEntry[]>(initialLogs);
+  // Bots y módulos: catálogo estructural del sistema (lib/data). No son
+  // datos de la aplicación; las ediciones valen solo por la sesión.
+  const [bots, setBots] = useState<Bot[]>([...ALL_BOTS]);
+  // Reglas y corridas: arrancan VACÍAS. Las corridas registran envíos
+  // reales de esta interfaz; nada viene precargado.
+  const [rules, setRules] = useStored<Rule[]>("pulse.rules.v2", []);
+  const [runs, setRuns] = useStored<RunRecord[]>("pulse.runs.v2", []);
+
+  // Personajes y comunidades: SIEMPRE desde el backend.
+  const [characters, setCharacters] = useState<Character[]>([]);
+  const [charactersError, setCharactersError] = useState("");
+  const [comunidades, setComunidades] = useState<ApiComunidad[]>([]);
+
+  // Proveedores y modelos LLM: SIEMPRE desde el backend.
+  const [proveedores, setProveedores] = useState<ProveedorLLM[]>([]);
+  const [modelos, setModelos] = useState<ModeloLLM[]>([]);
+  const [selModeloId, setSelModeloId] = useStored<string>(
+    "pulse.llm.modelo.v2",
+    "",
+  );
+
+  const [logs, setLogs] = useState<LogEntry[]>([]);
   const [meshStats, setMeshStats] = useState<{
     unidades: number;
     verificadas: number;
     fallidas: number;
   } | null>(null);
-  const [run, setRun] = useState<RunState>({
-    status: "idle",
-    units: [],
-    prompt: "",
-    expected: 0,
-  });
+  const [sending, setSending] = useState(false);
   const [llmReply, setLlmReply] = useState("");
   const [llmError, setLlmError] = useState("");
+  const [actionError, setActionError] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [loginOpen, setLoginOpen] = useState(false);
@@ -111,12 +114,75 @@ export default function PulseOS() {
   );
 
   const tokenRef = useRef(0);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const provider = activeProvider(settings);
-  const providerName = provider?.name ?? "sin proveedor";
-  const modelName = provider?.model ?? "sin modelo";
-  const configured = llmConfigured(settings);
+  const modelosDisponibles = modelos.filter((m) => m.disponible);
+  const selectedModelo =
+    modelosDisponibles.find((m) => m.id === selModeloId) ??
+    modelosDisponibles[0];
+  const selectedProveedor = proveedores.find(
+    (p) => p.id === selectedModelo?.proveedor_id,
+  );
+  const configured = Boolean(selectedModelo) && selectedProveedor?.activo !== false;
+  const providerName = selectedProveedor?.nombre ?? "sin proveedor";
+  const modelName = selectedModelo?.identificador_tecnico ?? "sin modelo";
+  const composerModels = modelosDisponibles.map((m) => {
+    const prov = proveedores.find((p) => p.id === m.proveedor_id);
+    return {
+      id: m.id,
+      label: prov ? `${m.identificador_tecnico} · ${prov.nombre}` : m.identificador_tecnico,
+    };
+  });
+
+  function addLog(source: string, message: string, color?: Color) {
+    const entry: LogEntry = {
+      id: uid("log"),
+      time: timeNow(),
+      source,
+      message,
+      color,
+    };
+    setLogs((prev) => [...prev.slice(-199), entry]);
+    return entry;
+  }
+
+  // ------------------------------------------------------------------
+  // Cargas desde el backend (la respuesta — incluso vacía — manda)
+  // ------------------------------------------------------------------
+
+  const loadPersonajes = useCallback(async () => {
+    try {
+      const apiPersonajes = await listPersonajes();
+      setCharacters(apiPersonajes.map(mapPersonaje));
+      setCharactersError("");
+    } catch (e) {
+      setCharacters([]);
+      setCharactersError(
+        `No pude cargar los personajes del backend (${errorText(e)}). Revisá que el servidor esté levantado; no se muestra ningún dato de ejemplo.`,
+      );
+    }
+  }, []);
+
+  const loadComunidades = useCallback(async () => {
+    try {
+      setComunidades(await listComunidades());
+    } catch {
+      setComunidades([]);
+    }
+  }, []);
+
+  const loadLLM = useCallback(async () => {
+    try {
+      const [provs, mods] = await Promise.all([
+        listProveedores(),
+        listModelos(),
+      ]);
+      setProveedores(provs);
+      setModelos(mods);
+    } catch {
+      setProveedores([]);
+      setModelos([]);
+    }
+  }, []);
 
   useEffect(() => {
     if (isAuthenticated()) {
@@ -125,36 +191,15 @@ export default function PulseOS() {
     setMounted(true);
     return () => {
       tokenRef.current += 1;
-      if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, []);
 
-  // Sincronizar comunidades y personajes con el backend al montar
   useEffect(() => {
     if (!mounted) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const apiPersonajes = await listPersonajes();
-        if (cancelled || !apiPersonajes.length) return;
-        const mapped: Character[] = apiPersonajes.map((p) => ({
-          id: p.id,
-          name: p.nombre,
-          communityId: p.comunidad_id,
-          color: colorForName(p.nombre),
-          estado: (p.estado === "activo" ? "activo" : p.estado === "inactivo" ? "inactivo" : "en_preparacion") as Character["estado"],
-          actividad: p.nivel_actividad ?? 5,
-          bio: p.biografia_interna ?? "",
-          temperamento: (p.personalidad as Record<string, string>)?.temperamento ?? "",
-          temas: (p.personalidad as Record<string, string[]>)?.temas_preferidos ?? [],
-        }));
-        setCharacters(mapped);
-      } catch {
-        // Backend no disponible, usar datos locales
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [mounted]);
+    void loadPersonajes();
+    void loadComunidades();
+    void loadLLM();
+  }, [mounted, loadPersonajes, loadComunidades, loadLLM]);
 
   // Estadísticas reales del mesh (tareas de Facebook del backend)
   useEffect(() => {
@@ -175,7 +220,7 @@ export default function PulseOS() {
           fallidas: fb.filter((t) => t.estado === "fallida").length,
         });
       } catch {
-        // Sin backend: el header usa las stats de la corrida local
+        if (!cancelled) setMeshStats(null);
       }
     };
     void tick();
@@ -185,212 +230,106 @@ export default function PulseOS() {
       clearInterval(id);
     };
   }, [mounted]);
-  function addLog(source: string, message: string, color?: Color) {
-    const entry: LogEntry = {
-      id: uid("log"),
-      time: timeNow(),
-      source,
-      message,
-      color,
-    };
-    setLogs((prev) => [...prev.slice(-199), entry]);
-    return entry;
+
+  // ------------------------------------------------------------------
+  // Envío al LLM del backend: el resultado SIEMPRE se muestra
+  // ------------------------------------------------------------------
+
+  function pushRun(record: Omit<RunRecord, "id">) {
+    setRuns((prev) => [{ ...record, id: uid("run") }, ...prev].slice(0, 30));
   }
 
-  function startRun(prompt: string) {
-    if (run.status === "running") return;
+  async function startRun(prompt: string) {
+    if (sending) return;
+    setLlmReply("");
+    setLlmError("");
 
-    const enabled = bots.filter((bot) => bot.enabled);
-    if (enabled.length === 0) {
-      addLog("pulse", "no hay bots habilitados para ejecutar", "red");
+    if (!configured || !selectedModelo) {
+      const message =
+        "Todavía no hay un modelo LLM disponible en el backend, así que no se envió nada. Cargá un proveedor y un modelo en ⚙ → Proveedores, probá la conexión ahí y volvé a intentar.";
+      setLlmError(message);
+      addLog("llm", "sin proveedor en el backend · nada enviado", "red");
       return;
     }
 
-    const ordered = [...enabled].sort(
-      (a, b) => Number(b.connected) - Number(a.connected),
-    );
-    const pool = ordered.slice(0, 15);
-    const expected = Math.max(6, Math.min(15, pool.length));
     const token = tokenRef.current + 1;
     tokenRef.current = token;
     const startMs = Date.now();
     const startedAt = new Date(startMs).toISOString();
     const runLogs: LogEntry[] = [];
-    const collected: Unit[] = [];
+    runLogs.push(
+      addLog(
+        "orquestador",
+        `objetivo recibido · ${providerName} / ${modelName}`,
+        "cyan",
+      ),
+    );
+    setSending(true);
 
-    function pushLog(source: string, message: string, color?: Color) {
-      runLogs.push(addLog(source, message, color));
-    }
-
-    setRun({ status: "running", units: [], prompt, expected });
-    setLlmReply("");
-    setLlmError("");
-    pushLog("orquestador", `objetivo recibido · ${expected} unidades`, "cyan");
-    pushLog("router", `modelo activo · ${configured ? modelName : "demo"}`, "yellow");
-
-    if (configured) {
-      callLLM(prompt, settings)
-        .then((reply) => {
-          if (tokenRef.current !== token) return;
-          setLlmReply(reply);
-          addLog("llm", `respuesta recibida · ${reply.length} caracteres`, "purple");
-        })
-        .catch((error: unknown) => {
-          if (tokenRef.current !== token) return;
-          setLlmError(
-            error instanceof Error ? error.message : "Error al llamar al LLM.",
-          );
-          addLog("llm", "error de proveedor · revisá la configuración", "red");
-        });
-    } else {
-      const plan = pool
-        .slice(0, 3)
-        .map((bot, index) => `${index + 1}. ${bot.name} (${bot.tag}) — ${bot.desc}`)
-        .join("\n");
-      setLlmReply(
-        `Modo demo · sin API key.\n\nPlan para “${prompt}”:\n${plan}\n\nLas unidades se ejecutan de forma simulada.`,
-      );
-      addLog("llm", "plan demo generado sin proveedor", "yellow");
-    }
-
-    let index = 0;
-
-    function finish() {
-      const verified = collected.filter(
-        (unit) => unit.status === "verified",
-      ).length;
-      const rejected = collected.filter(
-        (unit) => unit.status === "rejected",
-      ).length;
-      setRun({
-        status: "complete",
-        units: collected.map((unit) => ({ ...unit })),
-        prompt,
-        expected,
+    try {
+      const res = await chatLLM({
+        messages: [{ role: "user", content: prompt }],
+        modelo_id: selectedModelo.id,
       });
-      pushLog(
-        "check",
-        `${verified} verificadas · ${rejected} ${
-          rejected === 1 ? "rechazada" : "rechazadas"
-        }`,
-        rejected > 0 ? "yellow" : "green",
+      if (tokenRef.current !== token) return;
+      const content = res.content ?? "";
+      setLlmReply(content);
+      runLogs.push(
+        addLog(
+          "llm",
+          `respuesta recibida · ${content.length} caracteres · ${res.model_used ?? modelName}`,
+          "purple",
+        ),
       );
-      pushLog("output", "run completo · salida verificada", "green");
-      const record: RunRecord = {
-        id: uid("run"),
+      pushRun({
         prompt,
-        model: configured ? modelName : "demo",
+        model: res.model_used ?? modelName,
         status: "complete",
-        units: collected.length,
-        verified,
-        rejected,
+        units: 1,
+        verified: 1,
+        rejected: 0,
         startedAt,
         durationMs: Date.now() - startMs,
         logs: runLogs.slice(-24),
-        outputs: collected
-          .filter((unit) => unit.output && unit.status === "verified")
-          .map((unit) => {
-            const bot = pool.find((item) => item.id === unit.botId);
-            return {
-              label: unit.label,
-              bot: bot?.name ?? unit.botId,
-              content: unit.output as string,
-            };
-          })
-          .slice(0, 20),
-      };
-      setRuns((prev) => [record, ...prev].slice(0, 30));
-    }
-
-    const personasPool = characters;
-
-    async function executeUnit(
-      bot: Bot,
-      persona: Character | undefined,
-      label: string,
-    ): Promise<{ ok: boolean; content: string; error?: string }> {
-      await new Promise((resolve) => setTimeout(resolve, 350 + Math.random() * 400));
-      if (!configured) {
-        return { ok: false, content: "", error: "Sin proveedor LLM configurado: cargá uno en Ajustes para ejecutar de verdad." };
-      }
-      try {
-        const content = await callLLM(
-          `Tarea del operador: ${prompt}\nUnidad a ejecutar: ${label}`,
-          settings,
-          { system: unitSystem(bot, persona), maxTokens: 240 },
-        );
-        if (!content || content.trim().length < 30) {
-          return {
-            ok: false,
-            content: content ?? "",
-            error: "contenido insuficiente",
-          };
-        }
-        return { ok: true, content: content.trim() };
-      } catch (error) {
-        return {
-          ok: false,
-          content: "",
-          error: error instanceof Error ? error.message : "error de LLM",
-        };
-      }
-    }
-
-    async function step() {
+        outputs: [
+          {
+            label: "respuesta",
+            bot: res.provider_used ?? providerName,
+            content,
+          },
+        ],
+      });
+    } catch (e) {
       if (tokenRef.current !== token) return;
-
-      if (index >= expected) {
-        finish();
-        return;
-      }
-
-      const bot = pool[index];
-      const persona =
-        personasPool.length > 0 ? personasPool[index % personasPool.length] : undefined;
-      const unit: Unit = {
-        id: String(index + 1).padStart(2, "0"),
-        botId: bot.id,
-        label: unitCode(bot, index),
-        status: "running",
-      };
-      collected.push(unit);
-      setRun((current) => ({
-        ...current,
-        units: collected.map((item) => ({ ...item })),
-      }));
-      pushLog(
-        "mesh",
-        `unit ${unit.id} · ${unit.label}${persona ? ` · ${persona.name}` : ""}`,
-        bot.color,
-      );
-      index += 1;
-
-      const result = await executeUnit(bot, persona, unit.label);
-      if (tokenRef.current !== token) return;
-      unit.status = result.ok ? "verified" : "rejected";
-      unit.output = result.content || undefined;
-      unit.error = result.error;
-      setRun((current) => ({
-        ...current,
-        units: collected.map((item) => ({ ...item })),
-      }));
-      pushLog(
-        "check",
-        `${unit.label} · ${result.ok ? "verified" : `rejected · ${result.error ?? ""}`}`,
-        result.ok ? "green" : "red",
-      );
-      timerRef.current = setTimeout(step, 420);
+      const message = `${errorText(e)} Si el problema sigue, revisá el proveedor en ⚙ → Proveedores y probá la conexión desde ahí.`;
+      setLlmError(message);
+      runLogs.push(addLog("llm", "error del proveedor LLM", "red"));
+      pushRun({
+        prompt,
+        model: modelName,
+        status: "error",
+        units: 1,
+        verified: 0,
+        rejected: 1,
+        startedAt,
+        durationMs: Date.now() - startMs,
+        logs: runLogs.slice(-24),
+        outputs: [],
+      });
+    } finally {
+      if (tokenRef.current === token) setSending(false);
     }
-
-    void step();
   }
 
   function stopRun() {
     tokenRef.current += 1;
-    if (timerRef.current) clearTimeout(timerRef.current);
-    setRun((current) => ({ ...current, status: "error" }));
-    addLog("output", "corrida detenida por el operador", "red");
+    setSending(false);
+    addLog("output", "envío detenido por el operador", "red");
   }
+
+  // ------------------------------------------------------------------
+  // Bots (catálogo estructural) y personajes (backend)
+  // ------------------------------------------------------------------
 
   function saveBot(bot: Bot) {
     setBots((prev) => prev.map((item) => (item.id === bot.id ? bot : item)));
@@ -411,130 +350,82 @@ export default function PulseOS() {
     );
   }
 
-  function saveCharacter(character: Character) {
-    const exists = characters.some((item) => item.id === character.id);
-    setCharacters((prev) =>
-      exists
-        ? prev.map((item) => (item.id === character.id ? character : item))
-        : [...prev, character],
-    );
-    // Sincronizar con backend
-    (async () => {
+  function newCharacter() {
+    setCharacterEditing({
+      id: `new-${Date.now().toString(36)}`,
+      name: "",
+      communityId: comunidades[0]?.id ?? "",
+      color: "cyan",
+      estado: "en_preparacion",
+      actividad: 5,
+      bio: "",
+      temperamento: "",
+      temas: [],
+    });
+  }
+
+  function saveCharacter(character: Character, nuevaComunidad?: string) {
+    const isNew = character.id.startsWith("new-");
+    void (async () => {
       try {
-        if (exists) {
-          await updatePersonaje(character.id, {
-            nombre: character.name,
-            biografia_interna: character.bio,
-            nivel_actividad: character.actividad,
-            personalidad: { temperamento: character.temperamento, temas_preferidos: character.temas },
-            estado: character.estado,
-          });
-        } else {
+        let comunidadId = character.communityId;
+        if (isNew) {
+          if (!comunidadId && nuevaComunidad?.trim()) {
+            const creada = await createComunidad({
+              nombre: nuevaComunidad.trim(),
+            });
+            comunidadId = creada.id;
+            await loadComunidades();
+          }
+          if (!comunidadId) {
+            throw new Error(
+              "el personaje necesita una comunidad: elegí una o creá la primera desde el formulario.",
+            );
+          }
           await createPersonaje({
             nombre: character.name,
-            comunidad_id: character.communityId || "gatos",
+            comunidad_id: comunidadId,
             biografia_interna: character.bio,
             nivel_actividad: character.actividad,
-            personalidad: { temperamento: character.temperamento, temas_preferidos: character.temas },
+            personalidad: {
+              temperamento: character.temperamento,
+              temas_preferidos: character.temas,
+            },
+          });
+        } else {
+          await updatePersonaje(character.id, {
+            nombre: character.name,
+            comunidad_id: character.communityId || undefined,
+            biografia_interna: character.bio,
+            nivel_actividad: character.actividad,
+            personalidad: {
+              temperamento: character.temperamento,
+              temas_preferidos: character.temas,
+            },
+            estado: character.estado,
           });
         }
-      } catch {
-        // Backend no disponible
+        await loadPersonajes();
+        setActionError("");
+        addLog(
+          "persona",
+          `${isNew ? "personaje creado" : "personaje actualizado"} · ${character.name}`,
+          "purple",
+        );
+      } catch (e) {
+        const message = `No pude guardar el personaje «${character.name}»: ${errorText(e)}`;
+        setActionError(message);
+        addLog("persona", "error al guardar el personaje en el backend", "red");
       }
     })();
-    addLog(
-      "persona",
-      `${exists ? "personaje actualizado" : "personaje creado"} · ${character.name}`,
-      "purple",
-    );
-  }
-
-  function toggleAccount(id: string) {
-    setAccounts((prev) =>
-      prev.map((account) => {
-        if (account.id !== id) return account;
-        const connected = account.status === "conectado";
-        return {
-          ...account,
-          status: connected ? "desconectado" : "conectado",
-          lastSync: connected ? account.lastSync : "ahora",
-        };
-      }),
-    );
-    addLog("social", "estado de la Página actualizado", "pink");
-  }
-
-  function saveSettings(next: Settings) {
-    setSettings(next);
-    addLog("config", "configuración multiproveedor guardada", "green");
-  }
-
-  // Cargar modelos del proveedor activo al montar si no hay lista
-  useEffect(() => {
-    if (!mounted) return;
-    const active = activeProvider(settings);
-    if (!active || !active.apiKey.trim() || !active.baseUrl.trim()) return;
-    const models = active.models ?? [];
-    if (models.length > 0) {
-      if (!active.model || !models.includes(active.model)) {
-        setModel(models[0]);
-      }
-      return;
-    }
-    let cancelled = false;
-    const timer = setTimeout(async () => {
-      try {
-        const result = await testProvider(active);
-        if (cancelled) return;
-        setSettings((current) => ({
-          ...current,
-          providers: current.providers.map((item) =>
-            item.id === active.id
-              ? {
-                  ...item,
-                  models: result.models,
-                  model:
-                    item.model && result.models.includes(item.model)
-                      ? item.model
-                      : result.models[0] ?? item.model,
-                  status: "ok",
-                }
-              : item,
-          ),
-        }));
-        addLog(
-          "config",
-          `modelos cargados · ${result.models.length} disponibles`,
-          "cyan",
-        );
-      } catch {
-        // sin lista: el error se verá al ejecutar
-      }
-    }, 1200);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mounted, settings.providers, settings.activeProviderId]);
-
-  function setModel(model: string) {
-    setSettings((current) => ({
-      ...current,
-      providers: current.providers.map((item) =>
-        item.id === current.activeProviderId
-          ? { ...item, model: model.trim() }
-          : item,
-      ),
-    }));
   }
 
   function refreshMesh() {
+    void loadPersonajes();
+    void loadLLM();
     addLog(
       "pulse",
-      `mesh refreshed · ${bots.filter((bot) => bot.enabled).length} bots · ${
-        characters.length
-      } personajes`,
+      `mesh refreshed · ${characters.length} personajes del backend · ${meshStats?.unidades ?? 0} tareas fb`,
       "green",
     );
   }
@@ -547,9 +438,6 @@ export default function PulseOS() {
     );
   }
 
-  const verified = run.units.filter((unit) => unit.status === "verified").length;
-  const rejected = run.units.filter((unit) => unit.status === "rejected").length;
-
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-[#050508] text-slate-200">
       <Header
@@ -557,47 +445,60 @@ export default function PulseOS() {
         onTab={setActiveTab}
         onRefresh={refreshMesh}
         stats={{
-          online: meshStats
-            ? characters.filter((c) => c.estado === "activo").length
-            : bots.filter((bot) => bot.enabled).length,
-          units: meshStats ? meshStats.unidades : run.units.length,
-          verified: meshStats ? meshStats.verificadas : verified,
-          rejected: meshStats ? meshStats.fallidas : rejected,
+          online: characters.filter((c) => c.estado === "activo").length,
+          units: meshStats?.unidades ?? 0,
+          verified: meshStats?.verificadas ?? 0,
+          rejected: meshStats?.fallidas ?? 0,
           rules: rules.filter((rule) => rule.active).length,
         }}
         configured={configured}
         model={modelName}
-        running={run.status === "running"}
+        running={sending}
         onSettings={() => setSettingsOpen(true)}
       />
+
+      {actionError ? (
+        <div className="flex shrink-0 items-start gap-2 border-b border-neon-red/30 bg-neon-red/[0.07] px-3 py-2 text-[11px] leading-relaxed text-neon-red sm:px-5">
+          <span className="min-w-0 flex-1">{actionError}</span>
+          <button
+            type="button"
+            onClick={() => setActionError("")}
+            className="shrink-0 rounded p-0.5 transition hover:bg-white/5"
+            aria-label="Descartar error"
+          >
+            <X size={13} />
+          </button>
+        </div>
+      ) : null}
 
       <main className="min-h-0 flex-1 overflow-hidden">
         {activeTab === "Global" ? (
           <GlobalView
-            bots={bots}
             characters={characters}
-            run={run}
+            charactersError={charactersError}
             logs={logs}
-            settings={settings}
             configured={configured}
             providerName={providerName}
-            activeModel={modelName}
-            models={provider?.models ?? []}
-            onSetModel={setModel}
+            activeModel={selectedModelo?.id ?? ""}
+            models={composerModels}
+            onSetModel={setSelModeloId}
             llmReply={llmReply}
             llmError={llmError}
-            onRun={startRun}
+            sending={sending}
+            onRun={(prompt) => void startRun(prompt)}
             onStop={stopRun}
+            onDismissReply={() => {
+              setLlmReply("");
+              setLlmError("");
+            }}
             onOpenSettings={() => setSettingsOpen(true)}
-            onConfigureBot={setBotEditing}
-            onConnectBot={toggleBotConnection}
             onConfigureCharacter={setCharacterEditing}
+            onNewCharacter={newCharacter}
             onClearLogs={() => setLogs([])}
           />
         ) : activeTab === "Bots" ? (
           <BotsView
             bots={bots}
-            settings={settings}
             onConfigure={setBotEditing}
             onConnect={toggleBotConnection}
           />
@@ -606,19 +507,16 @@ export default function PulseOS() {
         ) : activeTab === "Rules" ? (
           <RulesView rules={rules} onChange={setRules} />
         ) : activeTab === "Memory" ? (
-          <MemoryView memories={memories} onChange={setMemories} />
+          <MemoryView />
         ) : activeTab === "Facebook" ? (
-          <FacebookView
-            characters={characters}
-          />
+          <FacebookView characters={characters} />
         ) : null}
       </main>
 
       <SettingsModal
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
-        settings={settings}
-        onSave={saveSettings}
+        onChanged={() => void loadLLM()}
       />
       <BotConfigModal
         key={botEditing?.id ?? "bot-closed"}
@@ -632,6 +530,7 @@ export default function PulseOS() {
         key={characterEditing?.id ?? "character-closed"}
         open={characterEditing !== null}
         character={characterEditing}
+        comunidades={comunidades}
         onClose={() => setCharacterEditing(null)}
         onSave={saveCharacter}
       />

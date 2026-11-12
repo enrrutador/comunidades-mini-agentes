@@ -3,18 +3,16 @@
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { BotCard } from "./BotCard";
-import type { Bot, Settings } from "@/lib/types";
+import type { Bot } from "@/lib/types";
 
 type Filter = "all" | "module" | "workflow";
 
 export function BotsView({
   bots,
-  settings,
   onConfigure,
   onConnect,
 }: {
   bots: Bot[];
-  settings: Settings;
   onConfigure: (bot: Bot) => void;
   onConnect: (bot: Bot) => void;
 }) {
@@ -43,13 +41,9 @@ export function BotsView({
         <div>
           <h1 className="text-lg font-medium text-slate-100">Bots y módulos</h1>
           <p className="mt-0.5 text-[11px] text-slate-500">
-            Componentes del sistema y bots de workflow. Cada bot puede
-            sobrescribir su modelo; el resto usa{" "}
-            <span className="font-mono text-slate-400">
-              {settings.providers.find((p) => p.id === settings.activeProviderId)?.model ||
-                "sin modelo"}
-            </span>
-            .
+            Componentes del sistema y bots de workflow (catálogo estructural).
+            El modelo activo se elige en la caja de chat y sale de los
+            proveedores cargados en el backend.
           </p>
         </div>
         <div className="flex flex-wrap gap-3 font-mono text-[9px] text-slate-500">

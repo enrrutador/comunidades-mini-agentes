@@ -1,10 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Brain, Plus, Search, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AlertCircle, Brain, Plus, Search, Trash2 } from "lucide-react";
 import { Field, Modal, StatusDot } from "./ui";
-import { dot, scopeColor, text, uid } from "@/lib/theme";
-import type { MemoryEntry, MemoryScope } from "@/lib/types";
+import { dot, scopeColor, shortDate, text } from "@/lib/theme";
+import {
+  createMemoria,
+  deleteMemoria,
+  listMemoria,
+  type MemoryEntry as ApiMemoryEntry,
+} from "@/lib/api";
+import type { MemoryScope } from "@/lib/types";
 
 const SCOPES: MemoryScope[] = [
   "individual",
@@ -22,33 +28,75 @@ const SCOPE_DESC: Record<MemoryScope, string> = {
 
 type Filter = "all" | MemoryScope;
 
-export function MemoryView({
-  memories,
-  onChange,
-}: {
-  memories: MemoryEntry[];
-  onChange: (memories: MemoryEntry[]) => void;
-}) {
+function asScope(value: string): MemoryScope {
+  return (SCOPES as string[]).includes(value)
+    ? (value as MemoryScope)
+    : "individual";
+}
+
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : "Error inesperado";
+}
+
+/**
+ * Memoria del mesh — vive en el backend (/api/memoria). La pantalla
+ * muestra exactamente lo que devuelve el servidor, incluida la lista
+ * vacía; si la API falla se muestra el error, nunca datos de ejemplo.
+ */
+export function MemoryView() {
+  const [entries, setEntries] = useState<ApiMemoryEntry[]>([]);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
 
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try {
+      setEntries(await listMemoria());
+      setError("");
+    } catch (e) {
+      setEntries([]);
+      setError(
+        `No pude cargar la memoria del backend (${errorText(e)}). No se muestra ningún recuerdo de ejemplo.`,
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
   const filtered = useMemo(() => {
     const term = query.trim().toLowerCase();
-    return memories.filter((entry) => {
-      if (filter !== "all" && entry.scope !== filter) return false;
+    return entries.filter((entry) => {
+      if (filter !== "all" && asScope(entry.scope) !== filter) return false;
       if (!term) return true;
       return `${entry.owner} ${entry.summary}`.toLowerCase().includes(term);
     });
-  }, [memories, filter, query]);
+  }, [entries, filter, query]);
 
   const counts = useMemo(() => {
-    const result = { all: memories.length } as Record<Filter, number>;
+    const result = { all: entries.length } as Record<Filter, number>;
     for (const scope of SCOPES) {
-      result[scope] = memories.filter((entry) => entry.scope === scope).length;
+      result[scope] = entries.filter(
+        (entry) => asScope(entry.scope) === scope,
+      ).length;
     }
     return result;
-  }, [memories]);
+  }, [entries]);
+
+  async function handleDelete(id: string) {
+    try {
+      await deleteMemoria(id);
+      await reload();
+    } catch (e) {
+      setError(`No pude borrar el recuerdo: ${errorText(e)}`);
+    }
+  }
 
   return (
     <section className="h-full overflow-y-auto p-4 sm:p-6">
@@ -57,8 +105,7 @@ export function MemoryView({
           <h1 className="text-lg font-medium text-slate-100">Memoria del mesh</h1>
           <p className="mt-0.5 max-w-2xl text-[11px] leading-relaxed text-slate-500">
             El orquestador recupera sólo el contexto relevante para cada tarea.
-            La memoria persistente vive fuera del prompt y se consulta por
-            scope.
+            La memoria persistente vive en el backend y se consulta por scope.
           </p>
         </div>
         <button
@@ -69,6 +116,13 @@ export function MemoryView({
           <Plus size={12} /> Nueva memoria
         </button>
       </div>
+
+      {error ? (
+        <div className="mt-4 flex items-start gap-2 rounded-lg border border-neon-red/30 bg-neon-red/[0.06] px-3 py-2 text-[11px] leading-relaxed text-neon-red">
+          <AlertCircle size={13} className="mt-0.5 shrink-0" />
+          <span>{error}</span>
+        </div>
+      ) : null}
 
       <div className="mt-4 flex flex-wrap items-center gap-1.5">
         <button
@@ -114,7 +168,8 @@ export function MemoryView({
 
       <div className="mt-4 grid gap-2.5 [grid-template-columns:repeat(auto-fill,minmax(260px,1fr))]">
         {filtered.map((entry) => {
-          const color = scopeColor[entry.scope];
+          const scope = asScope(entry.scope);
+          const color = scopeColor[scope];
           return (
             <article key={entry.id} className="neon-card group p-3">
               <div className="flex items-center justify-between gap-2">
@@ -122,13 +177,11 @@ export function MemoryView({
                   className={`inline-flex items-center gap-1 font-mono text-[9px] uppercase tracking-wider ${text[color]}`}
                 >
                   <span className={`h-1.5 w-1.5 rounded-full ${dot[color]}`} />
-                  {entry.scope}
+                  {scope}
                 </span>
                 <button
                   type="button"
-                  onClick={() =>
-                    onChange(memories.filter((item) => item.id !== entry.id))
-                  }
+                  onClick={() => void handleDelete(entry.id)}
                   className="rounded p-0.5 text-slate-600 opacity-0 transition hover:text-neon-red group-hover:opacity-100"
                   aria-label="Borrar memoria"
                 >
@@ -143,7 +196,7 @@ export function MemoryView({
                 {entry.summary}
               </p>
               <div className="mt-2 font-mono text-[9px] text-slate-600">
-                {entry.time}
+                {shortDate(entry.created_at)}
               </div>
             </article>
           );
@@ -151,12 +204,20 @@ export function MemoryView({
       </div>
 
       {filtered.length === 0 ? (
-        <div className="mt-6 rounded-lg border border-dashed border-white/10 px-4 py-10 text-center font-mono text-[10px] text-slate-600">
-          no hay recuerdos en este filtro
+        <div className="mt-6 rounded-lg border border-dashed border-white/10 px-4 py-10 text-center font-mono text-[10px] leading-relaxed text-slate-600">
+          {loading
+            ? "cargando la memoria del backend…"
+            : entries.length === 0
+              ? "Todavía no hay recuerdos guardados en el backend."
+              : "No hay recuerdos en este filtro."}
         </div>
       ) : null}
 
-      <MemoryModal open={open} onClose={() => setOpen(false)} onSave={onChange} memories={memories} />
+      <MemoryModal
+        open={open}
+        onClose={() => setOpen(false)}
+        onSaved={() => void reload()}
+      />
     </section>
   );
 }
@@ -164,38 +225,43 @@ export function MemoryView({
 function MemoryModal({
   open,
   onClose,
-  onSave,
-  memories,
+  onSaved,
 }: {
   open: boolean;
   onClose: () => void;
-  onSave: (memories: MemoryEntry[]) => void;
-  memories: MemoryEntry[];
+  onSaved: () => void;
 }) {
   const [scope, setScope] = useState<MemoryScope>("individual");
   const [owner, setOwner] = useState("");
   const [summary, setSummary] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   useEffect(() => {
     if (!open) return;
     setScope("individual");
     setOwner("");
     setSummary("");
-  }, [open]);
+    setSaveError("");
+  }, [open ]);
 
-  function save() {
+  async function save() {
     if (!owner.trim() || !summary.trim()) return;
-    onSave([
-      {
-        id: uid("m"),
+    setSaving(true);
+    setSaveError("");
+    try {
+      await createMemoria({
         scope,
         owner: owner.trim(),
         summary: summary.trim(),
-        time: "ahora",
-      },
-      ...memories,
-    ]);
-    onClose();
+      });
+      onSaved();
+      onClose();
+    } catch (e) {
+      setSaveError(`No pude guardar el recuerdo: ${errorText(e)}`);
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -203,7 +269,7 @@ function MemoryModal({
       open={open}
       onClose={onClose}
       title="Nueva memoria"
-      subtitle="Un recuerdo recuperable por el orquestador en futuras corridas."
+      subtitle="Un recuerdo recuperable por el orquestador en futuras corridas. Se guarda en el backend."
       footer={
         <>
           <button type="button" onClick={onClose} className="btn-ghost">
@@ -211,11 +277,11 @@ function MemoryModal({
           </button>
           <button
             type="button"
-            onClick={save}
-            disabled={!owner.trim() || !summary.trim()}
+            onClick={() => void save()}
+            disabled={!owner.trim() || !summary.trim() || saving}
             className="btn-primary"
           >
-            Guardar memoria
+            {saving ? "Guardando…" : "Guardar memoria"}
           </button>
         </>
       }
@@ -251,6 +317,11 @@ function MemoryModal({
             className="input-neon resize-y leading-relaxed"
           />
         </Field>
+        {saveError ? (
+          <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-neon-red">
+            <AlertCircle size={12} className="mt-0.5 shrink-0" /> {saveError}
+          </p>
+        ) : null}
       </div>
     </Modal>
   );

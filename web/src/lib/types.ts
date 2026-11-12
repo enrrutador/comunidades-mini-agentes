@@ -42,15 +42,6 @@ export interface Character {
   temas: string[];
 }
 
-export interface SocialAccount {
-  id: string;
-  platform: "facebook";
-  name: string;
-  page: string;
-  status: "conectado" | "desconectado";
-  lastSync?: string;
-}
-
 export interface Unit {
   id: string;
   botId: string;
@@ -96,28 +87,6 @@ export interface RunRecord {
   outputs?: RunOutput[];
 }
 
-export interface ProviderConfig {
-  id: string;
-  name: string;
-  baseUrl: string;
-  model: string;
-  models?: string[];
-  apiKey: string;
-  enabled: boolean;
-  status: "unknown" | "ok" | "error";
-  lastTest?: string;
-}
-
-export interface Settings {
-  providers: ProviderConfig[];
-  activeProviderId: string;
-  temperature: number;
-  maxTokens: number;
-  maxLoops: number;
-  autoVerify: boolean;
-  autoPay: boolean;
-}
-
 export interface Rule {
   id: string;
   name: string;
@@ -135,15 +104,6 @@ export interface MemoryEntry {
   owner: string;
   summary: string;
   time: string;
-}
-
-export interface Community {
-  id: string;
-  name: string;
-  color: Color;
-  agents: number;
-  tematica?: string;
-  descripcion?: string;
 }
 
 export interface ProviderPreset {

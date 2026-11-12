@@ -1,15 +1,11 @@
-import type {
-  Bot,
-  Character,
-  Community,
-  LogEntry,
-  MemoryEntry,
-  ProviderPreset,
-  Rule,
-  RunRecord,
-  Settings,
-  SocialAccount,
-} from "./types";
+import type { Bot, ProviderPreset } from "./types";
+
+/**
+ * Definiciones ESTRUCTURALES del sistema (catálogo de módulos y bots).
+ * No son datos de la aplicación: los personajes, la memoria, las corridas,
+ * los proveedores y las cuentas viven en el backend y se cargan por API.
+ * Acá no va ningún contenido de ejemplo presentado como datos reales.
+ */
 
 export const MODULES: Bot[] = [
   { id: "orquestador", name: "Orquestador", tag: "OR", color: "cyan", kind: "module", tools: "LLM Central", desc: "Interpreta objetivos y coordina el mesh.", instructions: "Traducí cada objetivo en un plan de unidades, seleccioná bots, recuperá memoria y evaluá resultados.", model: "", maxLoops: 3, autoVerify: true, enabled: true, connected: true },
@@ -42,36 +38,11 @@ export const WORKFLOW_BOTS: Bot[] = [
 
 export const ALL_BOTS: Bot[] = [...MODULES, ...WORKFLOW_BOTS];
 
-export const COMMUNITIES: Community[] = [
-  { id: "pulse-os", name: "pulse-os", color: "cyan", agents: 15, tematica: "Sistema operativo de agentes", descripcion: "Workspace interno de orquestación: módulos, bots de workflow y métricas del mesh." },
-  { id: "gatos", name: "Comunidad Gatos", color: "cyan", agents: 48, tematica: "Gatos y adopción", descripcion: "Comunidad de referencia: personajes con identidad propia, memoria e historial social." },
-  { id: "tech", name: "Tech & IA", color: "purple", agents: 32, tematica: "Tecnología e inteligencia artificial", descripcion: "Personajes que debaten modelos, herramientas y cultura open-source." },
-  { id: "deportes", name: "Deportes", color: "green", agents: 27, tematica: "Deportes y comunidad", descripcion: "Cobertura, opinión y conversación sobre deportes." },
-  { id: "historia", name: "Historia", color: "orange", agents: 19, tematica: "Historia y divulgación", descripcion: "Relatos, efemérides y debate histórico." },
-  { id: "entretenimiento", name: "Entretenimiento", color: "pink", agents: 41, tematica: "Cultura y entretenimiento", descripcion: "Personajes que comentan series, música y tendencias." },
-];
-
-export const CHARACTERS: Character[] = [
-  { id: "luna", name: "Luna", communityId: "gatos", color: "purple", estado: "activo", actividad: 9, bio: "Gata curiosa y nocturna; publica historias sobre adopción y vida callejera.", temperamento: "Juguetona, observadora", temas: ["adopción", "vida callejera", "fotografía"] },
-  { id: "milo", name: "Milo", communityId: "gatos", color: "orange", estado: "activo", actividad: 7, bio: "Compañero tranquilo, especialista en rutinas de hogar y alimentación.", temperamento: "Tranquilo, afectuoso", temas: ["hogar", "comida", "descanso"] },
-  { id: "sofi", name: "Sofi", communityId: "gatos", color: "pink", estado: "activo", actividad: 8, bio: "Voluntaria del refugio; coordina rescates y difunde casos urgentes.", temperamento: "Empática, organizada", temas: ["veterinaria", "rescate", "adopción"] },
-  { id: "bruno", name: "Bruno", communityId: "gatos", color: "green", estado: "activo", actividad: 6, bio: "Gato mayor que cuenta historias del barrio y da consejos a nuevos adoptantes.", temperamento: "Nostálgico, sabio", temas: ["barrio", "memoria", "consejos"] },
-  { id: "tom", name: "Tom", communityId: "gatos", color: "cyan", estado: "inactivo", actividad: 3, bio: "Perfil en preparación; aún no tiene Página asociada.", temperamento: "Reservado", temas: ["exploración"] },
-  { id: "nexus", name: "Nexus", communityId: "tech", color: "cyan", estado: "activo", actividad: 9, bio: "Analista de modelos open-source y despliegues locales.", temperamento: "Analítico, directo", temas: ["open-source", "LLMs", "hardware"] },
-  { id: "ada", name: "Ada", communityId: "tech", color: "purple", estado: "activo", actividad: 8, bio: "Ingeniera de datos; explica arquitecturas con ejemplos concretos.", temperamento: "Didáctica, precisa", temas: ["datos", "arquitectura", "seguridad"] },
-  { id: "byte", name: "Byte", communityId: "tech", color: "blue", estado: "activo", actividad: 7, bio: "Entusiasta de herramientas de automatización y agentes.", temperamento: "Curioso, acelerado", temas: ["automatización", "agentes", "productividad"] },
-  { id: "rayo", name: "Rayo", communityId: "deportes", color: "yellow", estado: "activo", actividad: 8, bio: "Cronista deportivo con foco en fútbol y análisis de datos.", temperamento: "Apasionado", temas: ["fútbol", "estadísticas", "hinchada"] },
-  { id: "mica", name: "Mica", communityId: "deportes", color: "orange", estado: "activo", actividad: 6, bio: "Ex deportista; comparte entrenamientos y vida saludable.", temperamento: "Motivadora", temas: ["entrenamiento", "salud", "rutinas"] },
-  { id: "clio", name: "Clio", communityId: "historia", color: "yellow", estado: "activo", actividad: 5, bio: "Divulgadora histórica; contrasta fuentes antes de publicar.", temperamento: "Reflexiva", temas: ["historia", "fuentes", "efemérides"] },
-  { id: "zeta", name: "Zeta", communityId: "entretenimiento", color: "pink", estado: "activo", actividad: 7, bio: "Comenta series y música con humor y memes.", temperamento: "Irónica", temas: ["series", "música", "tendencias"] },
-];
-
-export const SOCIAL_ACCOUNTS: SocialAccount[] = [
-  { id: "page-gatos", platform: "facebook", name: "Comunidad Gatos", page: "fb.com/comunidadgatos", status: "conectado", lastSync: "hace 12 min" },
-  { id: "page-tech", platform: "facebook", name: "Tech & IA", page: "fb.com/techia", status: "conectado", lastSync: "hace 34 min" },
-  { id: "page-deportes", platform: "facebook", name: "Deportes", page: "fb.com/deportes", status: "desconectado" },
-];
-
+/**
+ * Presets de endpoints conocidos para dar de alta un proveedor en el
+ * backend desde la sección Proveedores. Solo son URLs públicas de
+ * referencia: el proveedor real se crea y se guarda en el backend.
+ */
 export const PROVIDERS: ProviderPreset[] = [
   { id: "openai", name: "OpenAI", baseUrl: "https://api.openai.com/v1", model: "gpt-4o-mini", needsKey: true },
   { id: "openrouter", name: "OpenRouter", baseUrl: "https://openrouter.ai/api/v1", model: "openai/gpt-4o-mini", needsKey: true },
@@ -80,55 +51,3 @@ export const PROVIDERS: ProviderPreset[] = [
   { id: "ollama", name: "Ollama local", baseUrl: "http://localhost:11434/v1", model: "llama3.1", needsKey: false },
   { id: "custom", name: "Custom", baseUrl: "", model: "", needsKey: false },
 ];
-
-export const DEFAULT_SETTINGS: Settings = {
-  providers: [
-    { id: "openai", name: "OpenAI", baseUrl: "https://api.openai.com/v1", model: "gpt-4o-mini", apiKey: "", enabled: true, status: "unknown" },
-    { id: "openrouter", name: "OpenRouter", baseUrl: "https://openrouter.ai/api/v1", model: "openai/gpt-4o-mini", apiKey: "", enabled: false, status: "unknown" },
-    { id: "nvidia", name: "NVIDIA NIM", baseUrl: "https://integrate.api.nvidia.com/v1", model: "deepseek-ai/deepseek-v4.1-flash", apiKey: "", enabled: false, status: "unknown" },
-    { id: "ollama", name: "Ollama local", baseUrl: "http://localhost:11434/v1", model: "llama3.1", apiKey: "", enabled: false, status: "unknown" },
-  ],
-  activeProviderId: "openai",
-  temperature: 0.7,
-  maxTokens: 800,
-  maxLoops: 3,
-  autoVerify: true,
-  autoPay: false,
-};
-
-export const DEFAULT_RULES: Rule[] = [
-  { id: "r-no-autopay", name: "Sin auto-pago", desc: "Toda transacción que mueva dinero requiere aprobación humana.", active: true, severity: "alta", scope: "global" },
-  { id: "r-verify", name: "Verificar antes de publicar", desc: "Ninguna publicación sale sin pasar por el bot de verificación.", active: true, severity: "alta", scope: "global" },
-  { id: "r-loops", name: "Máximo 3 loops por bot", desc: "Un bot no puede iterar más de 3 veces sobre la misma unidad.", active: true, severity: "media", scope: "global" },
-];
-
-export const INITIAL_MEMORY: MemoryEntry[] = [
-  { id: "m1", scope: "individual", owner: "Luna", summary: "Publicó una historia sobre Milo. Sofi comentó y guardó el post.", time: "ayer" },
-  { id: "m2", scope: "colectiva", owner: "Comunidad Gatos", summary: "Tema recurrente: adoptabilidad de gatos callejeros en zona norte.", time: "2 días" },
-  { id: "m3", scope: "episódica", owner: "Bruno + Sofi", summary: "Conversación sobre veterinaria en zona norte; pidieron turno.", time: "3 días" },
-  { id: "m4", scope: "individual", owner: "Nexus", summary: "Interés creciente en modelos open-source y despliegues locales.", time: "hoy" },
-  { id: "m5", scope: "semántica", owner: "Mesh", summary: "El bot de research cita fuentes primarias cuando el tema es técnico.", time: "hoy" },
-];
-
-export const INITIAL_RUNS: RunRecord[] = [
-  { id: "seed-1", prompt: "Prepará mi semana y dejá la bandeja en cero", model: "gpt-4o-mini", status: "complete", units: 15, verified: 14, rejected: 1, startedAt: new Date(1731234567890 - 1000 * 60 * 42).toISOString(), durationMs: 18400, logs: [] },
-  { id: "seed-2", prompt: "Revisá el calendario y proponé contenido para la comunidad", model: "gpt-4o-mini", status: "complete", units: 12, verified: 12, rejected: 0, startedAt: new Date(1731234567890 - 1000 * 60 * 60 * 5).toISOString(), durationMs: 12100, logs: [] },
-  { id: "seed-3", prompt: "Conciliá los gastos de la semana", model: "gpt-4o-mini", status: "error", units: 6, verified: 4, rejected: 2, startedAt: new Date(1731234567890 - 1000 * 60 * 60 * 26).toISOString(), durationMs: 8600, logs: [] },
-];
-
-export function initialLogs(): LogEntry[] {
-  const now = 1731234567890;
-  const stamp = (offset: number) =>
-    new Date(now - offset).toLocaleTimeString("es-AR", {
-      hour12: false,
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
-  return [
-    { id: "l1", time: stamp(240000), source: "pulse", message: `mesh en línea · ${ALL_BOTS.length} bots · ${CHARACTERS.length} personajes`, color: "green" },
-    { id: "l2", time: stamp(150000), source: "router", message: "3 reglas activas · verificación habilitada", color: "yellow" },
-    { id: "l3", time: stamp(60000), source: "check", message: "condiciones de pase cargadas · auto-pago apagado", color: "purple" },
-    { id: "l4", time: stamp(10000), source: "output", message: "esperando instrucciones del operador", color: "cyan" },
-  ];
-}

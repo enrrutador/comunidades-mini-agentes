@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, ChevronRight, RotateCcw, TriangleAlert, X } from "lucide-react";
+import { Check, ChevronRight, Plus, RotateCcw, TriangleAlert, X } from "lucide-react";
 import {
   listMemoria,
   listTareas,
@@ -10,7 +10,7 @@ import {
   type Tarea,
 } from "@/lib/api";
 import { bgSoft, colorForName, line, text } from "@/lib/theme";
-import type { Character, Color, RunState } from "@/lib/types";
+import type { Character, Color } from "@/lib/types";
 
 const ROW_H = 34;
 const FIELD_W = 840;
@@ -55,13 +55,13 @@ interface Nodo {
 
 export function MeshField({
   characters,
-  run,
   onConfigureCharacter,
+  onNewCharacter,
   className = "",
 }: {
   characters: Character[];
-  run: RunState;
   onConfigureCharacter: (character: Character) => void;
+  onNewCharacter: () => void;
   className?: string;
 }) {
   const [tareas, setTareas] = useState<Tarea[] | null>(null);
@@ -145,39 +145,11 @@ export function MeshField({
 
   const H = Math.max(470, ordered.length * ROW_H + 10);
 
+  // Las unidades del mesh son SOLO tareas reales del backend (fb_*).
+  // Sin backend no se dibuja ninguna unidad inventada: el campo lo dice.
   const nodos: Nodo[] = useMemo(() => {
     const out: Nodo[] = [];
-    if (tareas === null || !backendOk) {
-      // Sin backend: el campo muestra las unidades de la corrida local.
-      run.units.forEach((unit, i) => {
-        const character = ordered.length
-          ? ordered[i % ordered.length]
-          : undefined;
-        const color = character?.color ?? "cyan";
-        const anchorY = character
-          ? (anchorIndex.get(character.id) ?? 0) * ROW_H + ROW_H / 2
-          : 14;
-        const x = 110 + (hash(unit.id + unit.label) % 620);
-        const y = 24 + (hash(unit.label + unit.id) % Math.max(60, H - 60));
-        out.push({
-          id: unit.id,
-          label: unit.label,
-          estado:
-            unit.status === "verified"
-              ? "completada"
-              : unit.status === "rejected"
-                ? "fallida"
-                : "en_ejecucion",
-          verificado: unit.status === "verified",
-          color,
-          anchorY,
-          x,
-          y,
-          path: `M0 ${anchorY} C ${x * 0.35} ${anchorY}, ${x * 0.62} ${y}, ${x} ${y}`,
-        });
-      });
-      return out.slice(0, MAX_NODES);
-    }
+    if (tareas === null || !backendOk) return out;
 
     const sorted = [...fbTareas].sort((a, b) =>
       (a.created_at ?? "").localeCompare(b.created_at ?? ""),
@@ -203,7 +175,7 @@ export function MeshField({
       });
     }
     return out;
-  }, [tareas, backendOk, fbTareas, run.units, ordered, anchorIndex, H]);
+  }, [tareas, backendOk, fbTareas, ordered, anchorIndex, H]);
 
   async function handleRetry() {
     if (!ultimaFallida || retrying) return;
@@ -231,7 +203,7 @@ export function MeshField({
             <span
               className={`h-1.5 w-1.5 animate-pulse rounded-full ${backendOk ? "bg-neon-red" : "bg-neon-yellow"}`}
             />
-            {backendOk ? "EN VIVO" : "SIN BACKEND · corrida local"}
+            {backendOk ? "EN VIVO" : "SIN BACKEND"}
           </div>
           <div className="truncate text-[13px] text-slate-300">
             global <span className="text-slate-600">/</span>{" "}
@@ -259,7 +231,20 @@ export function MeshField({
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         {/* Columna de personajes (los «bots» del mesh) */}
-        <div className="no-scrollbar order-1 flex shrink-0 gap-1 overflow-x-auto border-b border-white/[0.04] px-1.5 py-1.5 lg:w-[218px] lg:flex-col lg:gap-0 lg:overflow-x-hidden lg:overflow-y-auto lg:border-r lg:border-b-0 lg:px-0 lg:py-0">
+        <div className="order-1 flex shrink-0 flex-col border-b border-white/[0.04] lg:w-[218px] lg:border-r lg:border-b-0">
+          <div className="flex items-center justify-between gap-2 px-2.5 py-1.5">
+            <span className="font-mono text-[8px] tracking-widest text-slate-500">
+              PERSONAJES · BACKEND
+            </span>
+            <button
+              type="button"
+              onClick={onNewCharacter}
+              className="inline-flex items-center gap-1 rounded border border-neon-purple/30 bg-neon-purple/10 px-1.5 py-0.5 font-mono text-[8px] text-neon-purple transition hover:bg-neon-purple/20"
+            >
+              <Plus size={9} /> nuevo
+            </button>
+          </div>
+          <div className="no-scrollbar flex gap-1 overflow-x-auto px-1.5 pb-1.5 lg:flex-col lg:gap-0 lg:overflow-x-hidden lg:overflow-y-auto lg:px-0 lg:pb-0">
           {ordered.map((character) => (
             <button
               key={character.id}
@@ -302,10 +287,11 @@ export function MeshField({
             </button>
           ))}
           {ordered.length === 0 ? (
-            <div className="px-3 py-4 font-mono text-[9px] text-slate-600">
-              todavía no hay personajes
+            <div className="px-3 py-4 font-mono text-[9px] leading-relaxed text-slate-600">
+              Todavía no hay personajes. Creá el primero con el botón «nuevo».
             </div>
           ) : null}
+          </div>
         </div>
 
         {/* Campo mesh */}
@@ -388,27 +374,41 @@ export function MeshField({
 
           {nodos.length === 0 ? (
             <div className="absolute inset-0 flex items-center justify-center px-6 text-center">
-              <p className="max-w-[300px] font-mono text-[10px] leading-relaxed text-slate-600">
-                sin unidades todavía.
-                <br />
-                cuando el ejecutor publique, comente o reaccione, cada tarea
-                aparece acá como una unidad del mesh.
+              <p className="max-w-[320px] font-mono text-[10px] leading-relaxed text-slate-600">
+                {!backendOk ? (
+                  <>
+                    Sin conexión con el backend: no se pueden mostrar las
+                    tareas reales y no se dibuja ninguna unidad inventada.
+                  </>
+                ) : (
+                  <>
+                    Todavía no hay unidades.
+                    <br />
+                    Cuando el ejecutor publique, comente o reaccione, cada
+                    tarea real aparece acá como una unidad del mesh.
+                  </>
+                )}
               </p>
             </div>
           ) : null}
+        </div>
+      </div>
 
-          {/* Panel de salida verificada (el cierre de la referencia) */}
-          {stats.completadas > 0 ? (
-            overlayOpen ? (
-              <div className="absolute right-3 bottom-3 z-20 w-[332px] max-w-[calc(100%-24px)] rounded-xl border border-neon-green/25 bg-[#060a08]/95 p-3 shadow-[0_0_32px_rgba(0,255,157,0.12)] backdrop-blur">
-                <button
-                  type="button"
-                  onClick={() => setOverlayOpen(false)}
-                  className="absolute top-2 right-2 text-slate-500 transition hover:text-slate-300"
-                  aria-label="Ocultar panel"
-                >
-                  <X size={13} />
-                </button>
+      {/* Panel de salida verificada — en flujo normal, debajo del campo
+          (antes flotaba superpuesto sobre el grafo). */}
+      {stats.completadas > 0 ? (
+        overlayOpen ? (
+          <div className="relative shrink-0 border-t border-neon-green/20 bg-[#060a08] p-3">
+            <button
+              type="button"
+              onClick={() => setOverlayOpen(false)}
+              className="absolute top-2 right-2 text-slate-500 transition hover:text-slate-300"
+              aria-label="Ocultar panel"
+            >
+              <X size={13} />
+            </button>
+            <div className="flex flex-wrap items-start gap-x-6 gap-y-3">
+              <div>
                 <div className="flex items-center gap-3">
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-neon-green/60 bg-neon-green/10 text-neon-green shadow-[0_0_16px_rgba(0,255,157,0.35)]">
                     <Check size={22} />
@@ -433,8 +433,9 @@ export function MeshField({
                   {enLinea} personajes · {stats.fallidas} fallidas ·{" "}
                   {stats.enCola} en cola
                 </div>
+              </div>
 
-                <div className="mt-2.5 grid grid-cols-3 gap-1.5">
+              <div className="grid min-w-[260px] flex-1 grid-cols-3 gap-1.5">
                   <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-2 py-1.5">
                     <div className="flex items-center justify-between font-mono text-[8px] text-slate-500">
                       <span>comentarios</span>
@@ -469,7 +470,8 @@ export function MeshField({
                       +{memoria24h}
                     </div>
                   </div>
-                </div>
+              </div>
+            </div>
 
                 {ultimaFallida ? (
                   <div className="mt-2 rounded-lg border border-neon-yellow/40 bg-neon-yellow/[0.06] px-2.5 py-2">
@@ -498,20 +500,18 @@ export function MeshField({
                     </div>
                   </div>
                 ) : null}
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setOverlayOpen(true)}
-                className="absolute right-3 bottom-3 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-neon-green/50 bg-[#060a08]/95 text-neon-green shadow-[0_0_16px_rgba(0,255,157,0.3)]"
-                aria-label="Mostrar salida verificada"
-              >
-                <Check size={18} />
-              </button>
-            )
-          ) : null}
-        </div>
-      </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setOverlayOpen(true)}
+            className="flex shrink-0 items-center gap-2 border-t border-neon-green/20 bg-[#060a08] px-3 py-2 font-mono text-[9px] text-neon-green transition hover:bg-neon-green/[0.06]"
+          >
+            <Check size={12} /> mostrar salida verificada ({stats.verificadas}/
+            {stats.completadas})
+          </button>
+        )
+      ) : null}
     </section>
   );
 }

@@ -74,7 +74,7 @@ export function Header({
                 configured ? "bg-neon-green" : "bg-neon-yellow"
               }`}
             />
-            {configured ? model : "modo demo"}
+            {configured ? model : "sin proveedor"}
           </button>
           <div className="hidden items-center gap-1.5 sm:flex">
             <span

@@ -148,7 +148,7 @@ export function RulesView({
 
       {rules.length === 0 ? (
         <div className="mt-6 rounded-lg border border-dashed border-white/10 px-4 py-10 text-center font-mono text-[10px] text-slate-600">
-          no hay reglas definidas
+          Todavía no hay reglas. Creá la primera con «Nueva regla».
         </div>
       ) : null}
 

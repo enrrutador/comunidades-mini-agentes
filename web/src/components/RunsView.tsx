@@ -131,15 +131,16 @@ export function RunsView({
 
       {filtered.length === 0 ? (
         <div className="mt-6 rounded-lg border border-dashed border-white/10 px-4 py-10 text-center font-mono text-[10px] text-slate-600">
-          no hay corridas en este filtro
+          {runs.length === 0
+            ? "Todavía no hay corridas. Enviá una tarea desde la vista Global y queda registrada acá."
+            : "No hay corridas en este filtro."}
         </div>
       ) : null}
 
       <div className="mt-4 flex flex-wrap gap-1.5 font-mono text-[9px] text-slate-600">
         <Chip>modelo por corrida</Chip>
-        <Chip>unidades verificadas</Chip>
-        <Chip>rechazos auditables</Chip>
-        <Chip>cola real · Fase 2</Chip>
+        <Chip>envíos reales al backend</Chip>
+        <Chip>errores auditables</Chip>
       </div>
 
       <Modal
@@ -190,7 +191,7 @@ export function RunsView({
                 </div>
               ) : (
                 <div className="rounded-lg border border-dashed border-white/10 px-3 py-6 text-center font-mono text-[9px] text-slate-600">
-                  sin log detallado para esta corrida semilla
+                  esta corrida no guardó un log detallado
                 </div>
               )}
             </div>

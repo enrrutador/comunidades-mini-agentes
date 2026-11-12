@@ -95,24 +95,31 @@ export function CharacterCard({
 export function CharacterConfigModal({
   open,
   character,
+  comunidades,
   onClose,
   onSave,
 }: {
   open: boolean;
   character: Character | null;
+  comunidades: { id: string; nombre: string }[];
   onClose: () => void;
-  onSave: (character: Character) => void;
+  onSave: (character: Character, nuevaComunidad?: string) => void;
 }) {
   const [draft, setDraft] = useState<Character | null>(character);
   const [topics, setTopics] = useState("");
+  const [nuevaComunidad, setNuevaComunidad] = useState("");
 
   useEffect(() => {
     if (!open) return;
     setDraft(character);
     setTopics(character?.temas.join(", ") ?? "");
+    setNuevaComunidad("");
   }, [open, character]);
 
   if (!draft) return null;
+
+  const isNew = draft.id.startsWith("new-");
+  const sinComunidades = comunidades.length === 0;
 
   function update<K extends keyof Character>(key: K, value: Character[K]) {
     setDraft((current) => (current ? { ...current, [key]: value } : current));
@@ -131,14 +138,21 @@ export function CharacterConfigModal({
           </button>
           <button
             type="button"
+            disabled={
+              !draft.name.trim() ||
+              (isNew && sinComunidades && !nuevaComunidad.trim())
+            }
             onClick={() => {
-              onSave({
-                ...draft,
-                temas: topics
-                  .split(",")
-                  .map((topic) => topic.trim())
-                  .filter(Boolean),
-              });
+              onSave(
+                {
+                  ...draft,
+                  temas: topics
+                    .split(",")
+                    .map((topic) => topic.trim())
+                    .filter(Boolean),
+                },
+                sinComunidades ? nuevaComunidad : undefined,
+              );
               onClose();
             }}
             className="btn-primary"
@@ -211,10 +225,38 @@ export function CharacterConfigModal({
           </Field>
         </div>
 
+        {sinComunidades ? (
+          <Field
+            label="Comunidad"
+            hint="el backend todavía no tiene ninguna: se crea al guardar"
+          >
+            <input
+              value={nuevaComunidad}
+              onChange={(event) => setNuevaComunidad(event.target.value)}
+              placeholder="Nombre de la primera comunidad"
+              className="input-neon"
+            />
+          </Field>
+        ) : (
+          <Field label="Comunidad">
+            <select
+              value={draft.communityId}
+              onChange={(event) => update("communityId", event.target.value)}
+              className="input-neon"
+            >
+              {comunidades.map((comunidad) => (
+                <option key={comunidad.id} value={comunidad.id}>
+                  {comunidad.nombre}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
+
         <p className="rounded-md border border-white/5 bg-white/[0.02] px-3 py-2 text-[10px] leading-relaxed text-slate-500">
-          En el Documento Maestro la personalidad no se limita a estos campos:
-          esta ficha es la versión editable del panel y se guarda en el
-          navegador hasta conectar el backend de personajes.
+          El personaje se guarda en el backend (base de datos). Si el guardado
+          falla, el error se muestra arriba de la pantalla, no se pierde en
+          silencio.
         </p>
       </div>
     </Modal>
