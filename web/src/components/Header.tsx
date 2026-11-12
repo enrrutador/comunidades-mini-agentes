@@ -51,7 +51,7 @@ export function Header({
               key={tab}
               type="button"
               onClick={() => onTab(tab)}
-              className={`shrink-0 whitespace-nowrap rounded-md px-1 py-1.5 text-[11px] transition sm:px-3 sm:text-xs ${
+              className={`shrink-0 whitespace-nowrap rounded-md px-2 py-2 text-xs transition sm:px-3 ${
                 activeTab === tab
                   ? "border border-neon-cyan/30 bg-[#12121f] text-neon-cyan"
                   : "text-slate-400 hover:text-slate-200"

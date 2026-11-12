@@ -140,8 +140,9 @@ body {
     background: linear-gradient(135deg, #00f0ff, #7a5cff);
     color: #05050a;
     font-weight: 600;
-    font-size: 0.75rem;
-    padding: 0.6rem 0.9rem;
+    font-size: 0.85rem;
+    padding: 0.7rem 1rem;
+    min-height: 42px;
     transition: filter 150ms ease, transform 150ms ease;
   }
   .btn-primary:hover {
@@ -165,8 +166,9 @@ body {
     border: 1px solid #26263d;
     background: #0d0d17;
     color: #cbd5e1;
-    font-size: 0.7rem;
-    padding: 0.35rem 0.6rem;
+    font-size: 0.78rem;
+    padding: 0.5rem 0.7rem;
+    min-height: 38px;
     transition: background 150ms ease, border-color 150ms ease;
   }
   .btn-ghost:hover {
@@ -300,4 +302,17 @@ body {
 .mesh-flow {
   stroke-dasharray: 3 9;
   animation: mesh-dash-move 0.9s linear infinite;
+}
+
+/* Movil: los inputs a 16px evitan el zoom automatico al enfocar,
+   y ningun contenido puede desbordar horizontalmente. */
+@media (max-width: 640px) {
+  .input-neon {
+    font-size: 16px;
+  }
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
 }

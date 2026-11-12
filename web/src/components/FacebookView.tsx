@@ -119,7 +119,7 @@ function ProfileChip({
 }) {
   return (
     <div className="flex items-center gap-1.5">
-      <div className="rounded border border-white/25 bg-[#0b0b13]/90 px-1.5 py-1 font-mono text-[8px] tracking-widest text-slate-100">
+      <div className="rounded border border-white/25 bg-[#0b0b13]/90 px-1.5 py-1 font-mono text-[10px] tracking-widest text-slate-100">
         <span className="flex items-center gap-1.5">
           <span
             className={`h-1 w-1 rounded-full ${
@@ -804,7 +804,7 @@ export function FacebookView({ characters }: { characters: Character[] }) {
         <button
           type="button"
           onClick={() => setModalCuenta(true)}
-          className="shrink-0 rounded-md border border-neon-blue/30 bg-neon-blue/10 px-2 py-1 font-mono text-[9px] text-neon-blue transition hover:bg-neon-blue/20"
+          className="shrink-0 rounded-md border border-neon-blue/30 bg-neon-blue/10 px-2.5 py-2 font-mono text-[11px] text-neon-blue transition hover:bg-neon-blue/20"
         >
           <Plus size={10} className="inline" /> cuenta
         </button>
@@ -820,7 +820,7 @@ export function FacebookView({ characters }: { characters: Character[] }) {
       <div className="min-h-0 flex-1 overflow-y-auto">
         {/* CUENTA DE FACEBOOK — tarjeta principal: acá se ve si conectó */}
         <section className="border-b border-[#1a1a2e] px-3 py-3">
-          <div className="mb-2 flex items-center justify-between font-mono text-[8px] tracking-widest text-slate-500">
+          <div className="mb-2 flex items-center justify-between font-mono text-[10px] tracking-widest text-slate-500">
             <span>CUENTA DE FACEBOOK</span>
             <span>
               {cuentas.length === 0
@@ -883,7 +883,7 @@ export function FacebookView({ characters }: { characters: Character[] }) {
                       <button
                         type="button"
                         onClick={() => abrirVivo(cuenta)}
-                        className="rounded border border-neon-green/30 bg-neon-green/10 px-2 py-1 font-mono text-[9px] text-neon-green transition hover:bg-neon-green/20"
+                        className="rounded border border-neon-green/30 bg-neon-green/10 px-2.5 py-2 font-mono text-[11px] text-neon-green transition hover:bg-neon-green/20"
                       >
                         {cuenta.estado_conexion === "conectado"
                           ? "reconectar"
@@ -893,14 +893,14 @@ export function FacebookView({ characters }: { characters: Character[] }) {
                         type="button"
                         onClick={() => handleLogin(cuenta)}
                         title="Que la app intente sola con la contraseña guardada"
-                        className="rounded border border-white/10 px-2 py-1 font-mono text-[9px] text-slate-400 transition hover:border-white/30 hover:text-slate-200"
+                        className="rounded border border-white/10 px-2.5 py-2 font-mono text-[11px] text-slate-400 transition hover:border-white/30 hover:text-slate-200"
                       >
                         automático
                       </button>
                       <button
                         type="button"
                         onClick={() => handleDetectarPaginas(cuenta)}
-                        className="rounded border border-white/10 px-2 py-1 font-mono text-[9px] text-slate-300 transition hover:text-neon-cyan"
+                        className="rounded border border-white/10 px-2.5 py-2 font-mono text-[11px] text-slate-300 transition hover:text-neon-cyan"
                       >
                         detectar Páginas
                       </button>
@@ -911,14 +911,14 @@ export function FacebookView({ characters }: { characters: Character[] }) {
                           setSesionError("");
                           setModalSesion(cuenta);
                         }}
-                        className="rounded border border-white/10 px-2 py-1 font-mono text-[9px] text-slate-300 transition hover:text-neon-cyan"
+                        className="rounded border border-white/10 px-2.5 py-2 font-mono text-[11px] text-slate-300 transition hover:text-neon-cyan"
                       >
                         importar sesión
                       </button>
                       <button
                         type="button"
                         onClick={() => handleCrearPagina(cuenta)}
-                        className="rounded border border-white/10 px-2 py-1 font-mono text-[9px] text-slate-300 transition hover:text-neon-cyan"
+                        className="rounded border border-white/10 px-2.5 py-2 font-mono text-[11px] text-slate-300 transition hover:text-neon-cyan"
                       >
                         + Página
                       </button>
@@ -943,7 +943,7 @@ export function FacebookView({ characters }: { characters: Character[] }) {
         <div className="flex flex-col gap-2 p-3 xl:flex-row">
           {/* PERFILES — personajes reales del backend */}
           <section className="flex min-h-0 flex-col xl:w-[240px] xl:shrink-0">
-            <div className="mb-1.5 flex items-center justify-between font-mono text-[8px] tracking-widest text-slate-500">
+            <div className="mb-1.5 flex items-center justify-between font-mono text-[10px] tracking-widest text-slate-500">
               <span>PERFILES · activos</span>
               <span>{perfiles.length}</span>
             </div>
@@ -972,7 +972,7 @@ export function FacebookView({ characters }: { characters: Character[] }) {
 
           {/* PÁGINAS FB reales */}
           <section className="flex min-h-0 flex-col xl:w-[290px] xl:shrink-0">
-            <div className="mb-1.5 flex items-center justify-between font-mono text-[8px] tracking-widest text-slate-500">
+            <div className="mb-1.5 flex items-center justify-between font-mono text-[10px] tracking-widest text-slate-500">
               <span>PÁGINAS · FB</span>
               <span>{pages.length}</span>
             </div>
@@ -1016,7 +1016,7 @@ export function FacebookView({ characters }: { characters: Character[] }) {
 
           {/* FEED — solo acciones reales hechas desde esta pantalla */}
           <section className="flex min-h-0 flex-1 flex-col">
-            <div className="mb-1.5 flex items-center justify-between font-mono text-[8px] tracking-widest text-slate-500">
+            <div className="mb-1.5 flex items-center justify-between font-mono text-[10px] tracking-widest text-slate-500">
               <span>ACTIVIDAD · acciones desde esta pantalla</span>
               <button
                 type="button"
@@ -1081,8 +1081,8 @@ export function FacebookView({ characters }: { characters: Character[] }) {
       </div>
 
       {vivo ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-3">
-          <div className="flex max-h-full w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-white/15 bg-[#0a0a14]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-0 sm:p-3">
+          <div className="flex h-full w-full max-w-3xl flex-col overflow-hidden border border-white/15 bg-[#0a0a14] sm:h-auto sm:max-h-full sm:rounded-xl">
             <div className="flex items-center justify-between border-b border-white/10 px-4 py-2.5">
               <span className="font-mono text-[10px] tracking-widest text-neon-cyan">
                 NAVEGADOR DE LA APP — {vivo.nombre_identificador}
@@ -1123,18 +1123,18 @@ export function FacebookView({ characters }: { characters: Character[] }) {
                         if (e.key === "Enter") vivoInsertar();
                       }}
                       placeholder="escribí acá y tocá insertar…"
-                      className="min-w-0 flex-1 rounded border border-white/15 bg-black/40 px-2.5 py-1.5 text-[12px] text-slate-100 outline-none placeholder:text-slate-600 focus:border-neon-cyan/50"
+                      className="min-w-0 flex-1 rounded border border-white/15 bg-black/40 px-3 py-2.5 text-base text-slate-100 outline-none placeholder:text-slate-600 focus:border-neon-cyan/50"
                     />
                     <button
                       type="button"
                       onClick={vivoInsertar}
-                      className="rounded border border-neon-cyan/40 bg-neon-cyan/10 px-3 py-1.5 font-mono text-[10px] text-neon-cyan transition hover:bg-neon-cyan/20"
+                      className="rounded border border-neon-cyan/40 bg-neon-cyan/10 px-3 py-2.5 font-mono text-xs text-neon-cyan transition hover:bg-neon-cyan/20"
                     >
                       insertar
                     </button>
-                    <button type="button" onClick={() => vivoTecla("Backspace")} className="rounded border border-white/15 px-2.5 py-1.5 font-mono text-[10px] text-slate-300">⌫</button>
-                    <button type="button" onClick={() => vivoTecla("Enter")} className="rounded border border-white/15 px-2.5 py-1.5 font-mono text-[10px] text-slate-300">Enter ⏎</button>
-                    <button type="button" onClick={() => vivoTecla("Tab")} className="rounded border border-white/15 px-2.5 py-1.5 font-mono text-[10px] text-slate-300">Tab ⇥</button>
+                    <button type="button" onClick={() => vivoTecla("Backspace")} className="rounded border border-white/15 px-3 py-2.5 font-mono text-xs text-slate-300">⌫</button>
+                    <button type="button" onClick={() => vivoTecla("Enter")} className="rounded border border-white/15 px-3 py-2.5 font-mono text-xs text-slate-300">Enter ⏎</button>
+                    <button type="button" onClick={() => vivoTecla("Tab")} className="rounded border border-white/15 px-3 py-2.5 font-mono text-xs text-slate-300">Tab ⇥</button>
                   </div>
                 </div>
               </>

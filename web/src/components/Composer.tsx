@@ -50,23 +50,23 @@ export function Composer({
             placeholder="Describí una tarea…"
             className="max-h-32 w-full resize-none bg-transparent px-3 py-2.5 text-base leading-snug text-slate-200 outline-none placeholder:text-slate-600 sm:text-sm"
           />
-          <div className="flex items-center gap-2 px-2 pb-1.5">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-2 pb-2 pt-0.5">
             <button
               type="button"
               onClick={onOpenSettings}
-              className="flex items-center gap-1 rounded px-1 py-0.5 font-mono text-[9px] text-slate-500 transition hover:text-neon-cyan"
+              className="flex items-center gap-1 rounded px-1 py-1 font-mono text-[11px] text-slate-500 transition hover:text-neon-cyan"
               title="Proveedores LLM del backend"
             >
               <Settings2 size={10} />
               <span className="max-w-[90px] truncate">{providerName}</span>
             </button>
             <span className="h-2 w-px bg-white/10" />
-            <div className="relative shrink-0">
+            <div className="relative min-w-0">
               <select
                 value={model}
                 onChange={(event) => onSetModel(event.target.value)}
                 aria-label="Modelo del LLM"
-                className={`max-w-[130px] appearance-none truncate rounded bg-transparent py-0.5 pl-1 pr-4 font-mono text-[9px] outline-none transition hover:bg-white/5 sm:max-w-[210px] ${
+                className={`max-w-[150px] appearance-none truncate rounded bg-transparent py-1 pl-1 pr-4 font-mono text-[11px] outline-none transition hover:bg-white/5 sm:max-w-[210px] ${
                   model ? "text-slate-300" : "text-slate-500"
                 }`}
               >
@@ -85,7 +85,7 @@ export function Composer({
               />
             </div>
             <span
-              className={`rounded px-1 py-0.5 font-mono text-[8px] ${
+              className={`shrink-0 whitespace-nowrap rounded px-1.5 py-0.5 font-mono text-[10px] ${
                 configured
                   ? "bg-neon-green/10 text-neon-green"
                   : "bg-neon-yellow/10 text-neon-yellow"
@@ -96,7 +96,7 @@ export function Composer({
             <span className="ml-auto hidden font-mono text-[8px] text-slate-600 sm:inline">
               {running ? "ejecutando…" : "Enter ejecuta · Shift+Enter salto"}
             </span>
-            <span className="font-mono text-[8px] text-slate-600">
+            <span className="hidden font-mono text-[10px] text-slate-600 sm:inline">
               {value.length}/2000
             </span>
           </div>
