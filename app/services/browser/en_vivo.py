@@ -24,14 +24,18 @@ from app.services.browser.manager import get_browser_manager
 logger = logging.getLogger(__name__)
 
 MAX_SEGUNDOS = 900  # 15 minutos para iniciar sesion con calma
+URL_LOGIN = "https://www.facebook.com/login"
 
 
 class SesionViva:
     def __init__(self, cuenta_id: str):
         self.cuenta_id = cuenta_id
         self.connector = None
+        self.contexto = None
+        self.pagina = None
         self.cdp = None
         self.frame: bytes | None = None
+        self.frame_id = 0
         self.conectado = False
         self.activa = False
         self._vigia: asyncio.Task | None = None
@@ -39,6 +43,7 @@ class SesionViva:
     async def _al_recibir_frame(self, evento) -> None:
         try:
             self.frame = base64.b64decode(evento["data"])
+            self.frame_id += 1
         except Exception:
             pass
         try:
@@ -64,16 +69,29 @@ async def iniciar(cuenta_id: str) -> SesionViva:
     sesion = SesionViva(cuenta_id)
     connector = await manager.get_connector(cuenta_id)
     sesion.connector = connector
-    await connector.abrir_pagina_login()
-    sesion.cdp = await connector.sesion_cdp()
+    # Contexto PROPIO y angosto: el contenido de Facebook (y el desafio de
+    # seguridad) ocupa casi todo el ancho de la pantalla, con el doble de
+    # definicion, en vez de perderse en una pagina de escritorio ancha.
+    navegador = await connector.navegador()
+    sesion.contexto = await navegador.new_context(
+        viewport={"width": 780, "height": 680},
+        device_scale_factor=2,
+    )
+    sesion.pagina = await sesion.contexto.new_page()
+    await sesion.pagina.goto(
+        URL_LOGIN,
+        wait_until="domcontentloaded",
+        timeout=30000,
+    )
+    sesion.cdp = await sesion.contexto.new_cdp_session(sesion.pagina)
     sesion.cdp.on(
         "Page.screencastFrame",
         lambda ev: asyncio.ensure_future(sesion._al_recibir_frame(ev)),
     )
     await sesion.cdp.send(
         "Page.startScreencast",
-        {"format": "jpeg", "quality": 60, "maxWidth": 1280,
-         "maxHeight": 800, "everyNthFrame": 1},
+        {"format": "jpeg", "quality": 85, "maxWidth": 1560,
+         "maxHeight": 1360, "everyNthFrame": 1},
     )
     sesion.activa = True
     SESIONES[cuenta_id] = sesion
@@ -87,8 +105,9 @@ async def _vigilar(sesion: SesionViva) -> None:
         if not sesion.activa:
             return
         try:
-            if await sesion.connector.tiene_sesion():
-                state = await sesion.connector.get_storage_state()
+            cookies = await sesion.contexto.cookies("https://www.facebook.com")
+            if any(c["name"] == "c_user" for c in cookies):
+                state = await sesion.contexto.storage_state()
                 with Session(engine) as db:
                     cuenta = db.get(Cuenta, sesion.cuenta_id)
                     if cuenta:
@@ -147,6 +166,11 @@ async def cerrar(cuenta_id: str) -> None:
     try:
         if sesion.cdp:
             await sesion.cdp.send("Page.stopScreencast")
+    except Exception:
+        pass
+    try:
+        if sesion.contexto:
+            await sesion.contexto.close()
     except Exception:
         pass
     try:

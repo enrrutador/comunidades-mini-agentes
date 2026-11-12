@@ -532,14 +532,14 @@ async def navegador_vivo_abrir(
 
 
 @router.get("/cuentas/{cuenta_id}/navegador-vivo/frame")
-async def navegador_vivo_frame(cuenta_id: str):
+async def navegador_vivo_frame(cuenta_id: str, desde: int = 0):
     sesion = en_vivo.SESIONES.get(cuenta_id)
-    if not sesion or not sesion.frame:
+    if not sesion or not sesion.frame or sesion.frame_id <= desde:
         return Response(status_code=204)
     return Response(
         content=sesion.frame,
         media_type="image/jpeg",
-        headers={"Cache-Control": "no-store"},
+        headers={"Cache-Control": "no-store", "X-Frame-Id": str(sesion.frame_id)},
     )
 
 

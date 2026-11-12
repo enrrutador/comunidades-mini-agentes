@@ -297,6 +297,7 @@ export function FacebookView({ characters }: { characters: Character[] }) {
   const vivoImgRef = useRef<HTMLImageElement | null>(null);
   const vivoTimersRef = useRef<number[]>([]);
   const vivoUrlRef = useRef<string | null>(null);
+  const vivoFrameRef = useRef(0);
   const [sesionTexto, setSesionTexto] = useState("");
   const [sesionError, setSesionError] = useState("");
   const [draft, setDraft] = useState({ nombre_identificador: "", email_o_usuario: "", password: "", totp_secret: "" });
@@ -655,14 +656,16 @@ export function FacebookView({ characters }: { characters: Character[] }) {
     setVivo(cuenta);
     setVivoOk(false);
     setVivoTexto("");
+    vivoFrameRef.current = 0;
     pararVivo();
     void abrirNavegadorVivoFB(cuenta.id)
       .then(() => {
         const frameTimer = window.setInterval(() => {
-          void frameNavegadorVivoFB(cuenta.id).then((blob) => {
-            if (!blob || !vivoImgRef.current) return;
+          void frameNavegadorVivoFB(cuenta.id, vivoFrameRef.current).then((r) => {
+            if (!r || !vivoImgRef.current) return;
+            vivoFrameRef.current = r.id;
             if (vivoUrlRef.current) URL.revokeObjectURL(vivoUrlRef.current);
-            vivoUrlRef.current = URL.createObjectURL(blob);
+            vivoUrlRef.current = URL.createObjectURL(r.blob);
             vivoImgRef.current.src = vivoUrlRef.current;
           }).catch(() => {});
         }, 350);

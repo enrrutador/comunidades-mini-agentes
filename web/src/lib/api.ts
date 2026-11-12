@@ -523,11 +523,16 @@ export function cerrarNavegadorVivoFB(cuentaId: string) {
   return request<{ status: string }>(`/facebook/cuentas/${cuentaId}/navegador-vivo/cerrar`, { method: "POST" });
 }
 
-export async function frameNavegadorVivoFB(cuentaId: string): Promise<Blob | null> {
+export async function frameNavegadorVivoFB(
+  cuentaId: string,
+  desde: number,
+): Promise<{ blob: Blob; id: number } | null> {
   const token = getAuthToken();
-  const res = await fetch(`${API_BASE}/facebook/cuentas/${cuentaId}/navegador-vivo/frame`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
+  const res = await fetch(
+    `${API_BASE}/facebook/cuentas/${cuentaId}/navegador-vivo/frame?desde=${desde}`,
+    { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+  );
   if (!res.ok || res.status === 204) return null;
-  return res.blob();
+  const id = Number(res.headers.get("X-Frame-Id") || desde);
+  return { blob: await res.blob(), id };
 }

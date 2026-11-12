@@ -90,6 +90,12 @@ class FacebookBrowserConnector:
             timeout=20000,
         )
 
+    async def navegador(self):
+        """El Browser de Playwright (para contextos extra, p. ej. el vivo)."""
+        if not self._browser:
+            await self.start()
+        return self._browser
+
     async def sesion_cdp(self):
         """Sesion CDP de la pagina actual (screencast + entrada remota)."""
         if not self._context or not self._page:
