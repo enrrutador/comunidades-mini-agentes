@@ -1,4 +1,5 @@
 # ============ PULSE OS: LEVANTAR EL PROGRAMA (COMPLETO) ============
+# v8 (2026-11-12): lee la clave de NVIDIA desde los Secrets de Kaggle (UserSecretsClient).
 # v7 (2026-11-12): carga claves desde claves.env (persisten en Kaggle) y avisa si falta alguna.
 # v6 (2026-11-12): vigia que revisa backend, web y tunel y los levanta solos si se caen.
 import subprocess, sys, os, time, re, urllib.request
@@ -78,6 +79,21 @@ if os.path.exists(WORK + "/claves.env"):
             k, v = linea.split("=", 1)
             os.environ[k.strip()] = v.strip()
     print("Claves cargadas desde claves.env")
+
+# Claves desde los Secrets de Kaggle (ahi vive la de NVIDIA, adjuntada a
+# este cuaderno): los Secrets NO pasan solos al programa, hay que leerlos.
+try:
+    from kaggle_secrets import UserSecretsClient
+    nombre_clave = "NVIDIA" + "_API_KEY"
+    sec_nvidia = UserSecretsClient().get_secret(nombre_clave)
+    if sec_nvidia:
+        os.environ[nombre_clave] = sec_nvidia
+        print("Clave de NVIDIA cargada desde Kaggle Secrets")
+    else:
+        print("El secret de NVIDIA vino vacio")
+except Exception as e:
+    print("No se pudo leer el secret de Kaggle (¿esta adjuntado a este cuaderno?):", e)
+
 cargadas = sorted(k for k in os.environ if k.endswith("_API_KEY"))
 print("Variables de clave presentes:", ", ".join(cargadas) if cargadas else "NINGUNA (los proveedores van a fallar al llamarlos)")
 
