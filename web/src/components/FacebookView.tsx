@@ -29,6 +29,7 @@ import {
   listCuentasFB,
   listPaginasFB,
   estadoCuentaFB,
+  importarSesionFB,
   loginCuentaFB,
   publicarPostFB,
   reaccionarFB,
@@ -284,6 +285,9 @@ export function FacebookView({ characters }: { characters: Character[] }) {
   const [fbError, setFbError] = useState("");
   const [busy, setBusy] = useState(false);
   const [modalCuenta, setModalCuenta] = useState(false);
+  const [modalSesion, setModalSesion] = useState<CuentaFB | null>(null);
+  const [sesionTexto, setSesionTexto] = useState("");
+  const [sesionError, setSesionError] = useState("");
   const [draft, setDraft] = useState({ nombre_identificador: "", email_o_usuario: "", password: "", totp_secret: "" });
   const [showPw, setShowPw] = useState(false);
   const [postingOn, setPostingOn] = useState<string | null>(null);
@@ -565,6 +569,59 @@ export function FacebookView({ characters }: { characters: Character[] }) {
       });
   }
 
+  function handleImportarSesion() {
+    if (!modalSesion) return;
+    const cuenta = modalSesion;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(sesionTexto.trim());
+    } catch {
+      setSesionError("Eso no es un JSON válido. Pegá la exportación completa de cookies.");
+      return;
+    }
+    const payload = Array.isArray(parsed)
+      ? { cookies: parsed as unknown[] }
+      : { storage_state: parsed };
+    setBusy(true);
+    setSesionError("");
+    void importarSesionFB(cuenta.id, payload)
+      .then(async () => {
+        setModalSesion(null);
+        setSesionTexto("");
+        pushFeed({ tipo: "post", perfil: cuenta.nombre_identificador, pagina: "sesión importada · verificando…", status: "en_cola" });
+        setCuentas((current) =>
+          current.map((item) =>
+            item.id === cuenta.id ? { ...item, estado_conexion: "conectando" } : item,
+          ),
+        );
+        for (let intento = 0; intento < 40; intento++) {
+          await new Promise((resolve) => setTimeout(resolve, 3000));
+          const estado = await estadoCuentaFB(cuenta.id);
+          if (estado.estado_conexion === "conectado" || estado.estado_conexion === "error") {
+            if (estado.estado_conexion === "conectado") {
+              pushFeed({ tipo: "post", perfil: cuenta.nombre_identificador, pagina: "sesión abierta · detectando Páginas…", status: "ok" });
+              try {
+                const encontradas = await detectarPaginasFB(cuenta.id);
+                pushFeed({ tipo: "post", perfil: cuenta.nombre_identificador, pagina: `${encontradas.length} Páginas detectadas`, status: "ok" });
+              } catch {
+                pushFeed({ tipo: "post", perfil: cuenta.nombre_identificador, pagina: "la detección automática de Páginas falló", status: "error" });
+              }
+            } else {
+              pushFeed({ tipo: "post", perfil: cuenta.nombre_identificador, pagina: "la sesión importada no sirvió", texto: estado.estado_autorizacion ?? undefined, status: "error" });
+            }
+            await refresh();
+            return;
+          }
+        }
+        pushFeed({ tipo: "post", perfil: cuenta.nombre_identificador, pagina: "la verificación sigue en curso…", status: "en_cola" });
+      })
+      .catch((error: unknown) => {
+        setSesionError(errorText(error));
+        setModalSesion(cuenta);
+      })
+      .finally(() => setBusy(false));
+  }
+
   function handleDetectarPaginas(cuenta: CuentaFB) {
     pushFeed({ tipo: "post", perfil: cuenta.nombre_identificador, pagina: "detectando Páginas…", status: "en_cola" });
     void detectarPaginasFB(cuenta.id)
@@ -751,6 +808,17 @@ export function FacebookView({ characters }: { characters: Character[] }) {
                       </button>
                       <button
                         type="button"
+                        onClick={() => {
+                          setSesionTexto("");
+                          setSesionError("");
+                          setModalSesion(cuenta);
+                        }}
+                        className="rounded border border-white/10 px-2 py-1 font-mono text-[9px] text-slate-300 transition hover:text-neon-cyan"
+                      >
+                        importar sesión
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => handleCrearPagina(cuenta)}
                         className="rounded border border-white/10 px-2 py-1 font-mono text-[9px] text-slate-300 transition hover:text-neon-cyan"
                       >
@@ -913,6 +981,51 @@ export function FacebookView({ characters }: { characters: Character[] }) {
           </section>
         </div>
       </div>
+
+      <Modal
+        open={modalSesion !== null}
+        onClose={() => setModalSesion(null)}
+        title="Importar sesión de Facebook"
+        subtitle="Pegá las cookies de una sesión ya abierta en tu navegador: la cuenta queda conectada sin login con contraseña."
+        footer={
+          <>
+            <button type="button" onClick={() => setModalSesion(null)} className="btn-ghost">
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={() => handleImportarSesion()}
+              disabled={busy || !sesionTexto.trim()}
+              className="btn-primary"
+            >
+              {busy ? <Loader2 size={12} className="animate-spin" /> : null} Importar
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-[11px] leading-relaxed text-slate-400">
+            En tu teléfono: abrí Facebook en <span className="text-slate-200">Firefox</span> con la cuenta
+            ya ingresada, exportá las cookies de facebook.com en formato JSON con el
+            complemento <span className="text-slate-200">Cookie Manager</span> y pegá acá la exportación completa.
+            La sesión se guarda cifrada y se verifica sola.
+          </p>
+          <Field label="Cookies de facebook.com (JSON)">
+            <textarea
+              value={sesionTexto}
+              onChange={(event) => setSesionTexto(event.target.value)}
+              placeholder='[{"name": "c_user", "value": "...", "domain": ".facebook.com", ...}]'
+              rows={8}
+              className="input-neon w-full font-mono text-[10px]"
+            />
+          </Field>
+          {sesionError ? (
+            <p className="rounded border border-neon-red/25 bg-neon-red/10 px-2 py-1.5 text-[10px] text-rose-200">
+              {sesionError}
+            </p>
+          ) : null}
+        </div>
+      </Modal>
 
       <Modal
         open={modalCuenta}

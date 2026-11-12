@@ -479,3 +479,13 @@ export function isAuthenticated(): boolean {
 export async function getMe(): Promise<AuthUser> {
   return request<AuthUser>("/auth/me");
 }
+
+export function importarSesionFB(
+  cuentaId: string,
+  payload: { storage_state?: unknown; cookies?: unknown[] },
+) {
+  return request<{ status: string; message: string }>(
+    `/facebook/cuentas/${cuentaId}/importar-sesion`,
+    { method: "POST", body: JSON.stringify(payload) },
+  );
+}

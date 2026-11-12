@@ -13,7 +13,7 @@ import asyncio
 import json
 import re
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -340,7 +340,37 @@ def iniciar_login(
 
 
 class ImportarSesionRequest(BaseModel):
-    storage_state: dict
+    storage_state: Any = None
+    cookies: Optional[list] = None
+
+
+def _normalizar_cookies(crudos: list) -> list:
+    """Aceptar cookies de Playwright o de extensiones de navegador
+    (Cookie Manager / Cookie-Editor) y devolverlas en formato Playwright."""
+    salida = []
+    for c in crudos or []:
+        if not isinstance(c, dict) or not c.get("name"):
+            continue
+        dominio = c.get("domain") or ".facebook.com"
+        if "facebook" not in dominio:
+            continue
+        expira = c.get("expires", c.get("expirationDate", -1))
+        try:
+            expira = float(expira)
+        except (TypeError, ValueError):
+            expira = -1
+        ss = str(c.get("sameSite") or "Lax").lower()
+        salida.append({
+            "name": c["name"],
+            "value": str(c.get("value", "")),
+            "domain": dominio,
+            "path": c.get("path") or "/",
+            "expires": expira,
+            "httpOnly": bool(c.get("httpOnly", False)),
+            "secure": bool(c.get("secure", True)),
+            "sameSite": {"no_restriction": "None", "none": "None", "lax": "Lax", "strict": "Strict"}.get(ss, "Lax"),
+        })
+    return salida
 
 
 @router.post("/cuentas/{cuenta_id}/importar-sesion")
@@ -361,18 +391,23 @@ def importar_sesion(
     cuenta = session.get(Cuenta, cuenta_id)
     if not cuenta:
         raise HTTPException(status_code=404, detail="Cuenta no encontrada.")
-    cookies = data.storage_state.get("cookies") or []
-    tiene_c_user = any(
-        c.get("name") == "c_user" and "facebook" in (c.get("domain") or "")
-        for c in cookies
-        if isinstance(c, dict)
-    )
-    if not tiene_c_user:
+    crudos: list = []
+    origins: list = []
+    if data.cookies:
+        crudos = data.cookies
+    elif isinstance(data.storage_state, list):
+        crudos = data.storage_state
+    elif isinstance(data.storage_state, dict):
+        crudos = data.storage_state.get("cookies") or []
+        origins = data.storage_state.get("origins") or []
+    cookies = _normalizar_cookies(crudos)
+    if not any(c["name"] == "c_user" for c in cookies):
         raise HTTPException(
             status_code=400,
-            detail="El storage state no trae la cookie c_user de Facebook: no es una sesion valida.",
+            detail="Las cookies no traen c_user de Facebook: no es una sesion valida.",
         )
-    cuenta.storage_state_cifrado = cifrar(json.dumps(data.storage_state))
+    estado_importado = {"cookies": cookies, "origins": origins}
+    cuenta.storage_state_cifrado = cifrar(json.dumps(estado_importado))
     cuenta.estado_conexion = "conectando"
     cuenta.estado_autorizacion = "verificando sesion importada"
     session.add(cuenta)
