@@ -1,4 +1,5 @@
 # ============ PULSE OS: LEVANTAR EL PROGRAMA (COMPLETO) ============
+# v7 (2026-11-12): carga claves desde claves.env (persisten en Kaggle) y avisa si falta alguna.
 # v6 (2026-11-12): vigia que revisa backend, web y tunel y los levanta solos si se caen.
 import subprocess, sys, os, time, re, urllib.request
 
@@ -67,6 +68,18 @@ if BASE_NUEVA and os.path.exists(WORK + "/pulse.db"):
     print("Base anterior borrada")
 if not os.path.exists(WORK + "/pulse.db"):
     run(f"{sys.executable} -c \"from app.db.session import init_db; init_db(); print('Base vacia creada')\"")
+
+# Claves de proveedores guardadas en el disco de Kaggle (persisten entre
+# sesiones del cuaderno): una linea NOMBRE_API_KEY=valor por linea.
+if os.path.exists(WORK + "/claves.env"):
+    for linea in open(WORK + "/claves.env"):
+        linea = linea.strip()
+        if "=" in linea and not linea.startswith("#"):
+            k, v = linea.split("=", 1)
+            os.environ[k.strip()] = v.strip()
+    print("Claves cargadas desde claves.env")
+cargadas = sorted(k for k in os.environ if k.endswith("_API_KEY"))
+print("Variables de clave presentes:", ", ".join(cargadas) if cargadas else "NINGUNA (los proveedores van a fallar al llamarlos)")
 
 # ---------- 3: backend ----------
 subprocess.Popen(f"nohup {sys.executable} -m uvicorn app.main:app --host 0.0.0.0 --port 8000 > {WORK}/backend.log 2>&1 &", shell=True, cwd=REPO)

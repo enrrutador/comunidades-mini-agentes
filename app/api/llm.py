@@ -177,6 +177,40 @@ async def test_proveedor(payload: LLMTestRequest, session: Session = Depends(get
     instance = _get_provider_instance(proveedor)
     ok = await instance.test_connection()
     modelos = await instance.list_models() if ok else []
+    error = None if ok else "No se pudo conectar al proveedor."
+
+    if ok:
+        # OJO: /models responde aunque NO haya clave cargada (es público en
+        # varios proveedores), así que listar modelos NO prueba nada. La
+        # prueba honesta es una llamada de chat real y mínima.
+        modelo_prueba = None
+        fila = session.exec(
+            select(ModeloLLM)
+            .where(ModeloLLM.proveedor_id == proveedor.id, ModeloLLM.disponible == True)  # noqa: E712
+            .order_by(ModeloLLM.prioridad)
+        ).first()
+        if fila:
+            modelo_prueba = fila.identificador_tecnico
+        elif modelos:
+            modelo_prueba = modelos[0]
+        if modelo_prueba:
+            try:
+                await instance.chat(
+                    messages=[{"role": "user", "content": "hola"}],
+                    model=modelo_prueba,
+                    max_tokens=1,
+                )
+            except Exception as e:
+                import os
+
+                var_clave = f"{proveedor.nombre.upper().replace(' ', '_')}_API_KEY"
+                ok = False
+                error = (
+                    f"La lista de modelos responde, pero la llamada real al modelo "
+                    f"{modelo_prueba} falló: {e}. "
+                    f"Clave {var_clave} cargada en el servidor: "
+                    f"{'sí' if instance.api_key else 'NO — falta definirla en la celda de Kaggle'}."
+                )
 
     from datetime import datetime, timezone
     proveedor.updated_at = datetime.now(timezone.utc)
@@ -186,7 +220,7 @@ async def test_proveedor(payload: LLMTestRequest, session: Session = Depends(get
     return LLMTestResponse(
         ok=ok,
         modelos_disponibles=modelos,
-        error=None if ok else "No se pudo conectar al proveedor.",
+        error=error,
     )
 
 

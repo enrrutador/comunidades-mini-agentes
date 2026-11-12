@@ -76,7 +76,11 @@ class OpenAICompatibleProvider(LLMProvider):
                 headers=self._headers(),
                 json=payload,
             )
-            response.raise_for_status()
+            if response.status_code != 200:
+                detalle = response.text[:300].strip()
+                raise RuntimeError(
+                    f"El proveedor respondió HTTP {response.status_code}: {detalle}"
+                )
             data = response.json()
 
         choice = data.get("choices", [{}])[0]
