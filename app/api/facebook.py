@@ -262,6 +262,57 @@ def _ejecutar_login(cuenta_id: str) -> None:
             _marcar_error(session, str(error))
 
 
+def _ejecutar_verificacion_sesion(cuenta_id: str) -> None:
+    """Tarea en segundo plano: verificar una sesion importada (storage state).
+
+    Abre el navegador con el storage state guardado y comprueba si la
+    sesion de Facebook sigue viva (cookie c_user tras cargar la home).
+    """
+    with Session(engine) as session:
+        cuenta = session.get(Cuenta, cuenta_id)
+        if not cuenta or not cuenta.storage_state_cifrado:
+            return
+        try:
+            storage_state = json.loads(descifrar(cuenta.storage_state_cifrado))
+        except Exception:
+            cuenta.estado_conexion = "error"
+            cuenta.estado_autorizacion = "La sesion importada no se pudo leer."
+            session.add(cuenta)
+            session.commit()
+            return
+
+        async def _run() -> None:
+            manager = get_browser_manager()
+            try:
+                await manager.close(cuenta_id)
+            except Exception:
+                pass
+            connector = await manager.get_connector(cuenta_id, storage_state=storage_state)
+            try:
+                ok = await connector.is_logged_in()
+                if ok:
+                    cuenta.estado_conexion = "conectado"
+                    cuenta.estado_autorizacion = "autorizado (sesion importada)"
+                    cuenta.ultima_conexion = datetime.now(timezone.utc)
+                    logger.info("Sesion importada OK %s", cuenta_id)
+                else:
+                    cuenta.estado_conexion = "error"
+                    cuenta.estado_autorizacion = (
+                        "La sesion importada no es valida o ya expiro en Facebook."
+                    )
+                    logger.warning("Sesion importada rechazada %s", cuenta_id)
+            finally:
+                await manager.release(cuenta_id)
+
+        try:
+            asyncio.run(_run())
+        except Exception as error:  # noqa: BLE001
+            cuenta.estado_conexion = "error"
+            cuenta.estado_autorizacion = f"Error verificando la sesion: {error}"
+        session.add(cuenta)
+        session.commit()
+
+
 @router.post("/cuentas/{cuenta_id}/login")
 def iniciar_login(
     cuenta_id: str,
@@ -284,6 +335,52 @@ def iniciar_login(
     return {
         "status": "en_cola",
         "message": "Login en progreso. El navegador se abrirá en segundo plano.",
+        "cuenta_id": cuenta_id,
+    }
+
+
+class ImportarSesionRequest(BaseModel):
+    storage_state: dict
+
+
+@router.post("/cuentas/{cuenta_id}/importar-sesion")
+def importar_sesion(
+    cuenta_id: str,
+    data: ImportarSesionRequest,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+):
+    """Importar una sesion de Facebook ya iniciada en otro navegador.
+
+    Recibe el storage state de Playwright (cookies + localStorage) de una
+    sesion viva y lo guarda cifrado. La cuenta pasa a verificarse en
+    segundo plano: si la sesion es valida, queda conectada SIN pasar por
+    el login con contrasena (que Facebook suele frenar con checkpoints
+    cuando viene de una IP desconocida).
+    """
+    cuenta = session.get(Cuenta, cuenta_id)
+    if not cuenta:
+        raise HTTPException(status_code=404, detail="Cuenta no encontrada.")
+    cookies = data.storage_state.get("cookies") or []
+    tiene_c_user = any(
+        c.get("name") == "c_user" and "facebook" in (c.get("domain") or "")
+        for c in cookies
+        if isinstance(c, dict)
+    )
+    if not tiene_c_user:
+        raise HTTPException(
+            status_code=400,
+            detail="El storage state no trae la cookie c_user de Facebook: no es una sesion valida.",
+        )
+    cuenta.storage_state_cifrado = cifrar(json.dumps(data.storage_state))
+    cuenta.estado_conexion = "conectando"
+    cuenta.estado_autorizacion = "verificando sesion importada"
+    session.add(cuenta)
+    session.commit()
+    background_tasks.add_task(_ejecutar_verificacion_sesion, cuenta_id)
+    return {
+        "status": "en_cola",
+        "message": "Sesion importada. Verificando en segundo plano si sigue viva.",
         "cuenta_id": cuenta_id,
     }
 

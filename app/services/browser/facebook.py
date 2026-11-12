@@ -131,6 +131,21 @@ class FacebookBrowserConnector:
 
             # Verificar login exitoso
             logged_in = await self.is_logged_in()
+            if not logged_in:
+                # Si el rechazo fue la contrasena, esperar no cambia nada.
+                motivo = await self.diagnosticar_login()
+                if motivo.startswith("Facebook rechazo la contrasena"):
+                    logger.warning("Login fallido: contrasena rechazada")
+                    return False
+                # Checkpoint con aprobacion en el telefono: Facebook valida
+                # recien cuando el usuario toca "Si" en la notificacion de
+                # su dispositivo. Esperar y reintentar la comprobacion.
+                logger.info("Posible checkpoint: esperando aprobacion en el telefono")
+                for _ in range(12):
+                    await asyncio.sleep(10)
+                    if await self.is_logged_in():
+                        logged_in = True
+                        break
             if logged_in:
                 logger.info("Login exitoso en Facebook")
             else:
